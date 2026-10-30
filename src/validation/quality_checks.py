@@ -1,160 +1,152 @@
 ﻿"""
-PharmaSafe Data Quality Auditor & Report Generator
-Audits Bronze and Silver pipelines, validates schemas and relational integrity,
-computes precision metrics with explicit denominators, and generates:
-- reports/data_quality_report.md
-- data/silver/data_quality_metrics.json
+PharmaSafe Data Quality Auditor
+Compiles reports/data_quality_report.md and data/silver/data_quality_metrics.json from the metrics
+the pipelines write (Bronze ingestion summaries, silver_metrics.json, gold_metrics.json).
+The verdict is computed from explicit checks; nothing is declared passed unless it was verified.
 """
 
-import os
-import sys
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.logger import get_logger
-from src.utils.config_loader import get_project_root
+from src.utils.config_loader import load_data_sources_config, resolve_path
 
 logger = get_logger("PharmaSafe.DataQuality")
 
+KEY_COLUMNS = {
+    "DEMO": ["age", "sex", "event_dt", "fda_dt", "occr_country", "caseversion"],
+    "DRUG": ["drugname", "prod_ai", "role_cod", "route"],
+    "REAC": ["pt"],
+    "OUTC": ["outc_cod"],
+}
+
+
+def _load(path: Path) -> Dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
 
 class DataQualityAuditor:
-    """
-    Audits the Medallion pipeline and compiles comprehensive Data Quality Reports.
-    """
 
-    def __init__(self, root: Optional[Path] = None):
-        self.root = root or get_project_root()
-        self.reports_dir = self.root / "reports"
-        self.silver_dir = self.root / "data/silver"
-        self.bronze_dir = self.root / "data/bronze"
-        self.raw_dir = self.root / "data/raw"
+    def __init__(self, config: Optional[Dict[str, Any]] = None, root: Optional[Path] = None):
+        self.config = config or load_data_sources_config()
+        storage = self.config.get("storage", {})
+        self.bronze_dir = resolve_path(storage.get("bronze_dir", "data/bronze"))
+        self.silver_dir = resolve_path(storage.get("silver_dir", "data/silver"))
+        self.gold_dir = resolve_path(storage.get("gold_dir", "data/gold"))
+        self.manifest_path = resolve_path(storage.get("manifest_path", "data/raw/manifest.json"))
+        self.reports_dir = (root or resolve_path(".")) / "reports"
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_report(
-        self,
-        snapshot_name: str = "latest",
-        bronze_summaries: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
-        """
-        Gathers metrics across Bronze and Silver, generates markdown and JSON reports.
-        """
-        logger.info("Compiling Data Quality Report for snapshot '%s'...", snapshot_name)
-        silver_metrics_file = self.silver_dir / snapshot_name / "silver_metrics.json"
-        silver_data = {}
-        if silver_metrics_file.exists():
-            with open(silver_metrics_file, "r", encoding="utf-8") as f:
-                silver_data = json.load(f)
+    def collect(self, snapshot: str = "latest") -> Dict[str, Any]:
+        bronze = {p.parent.name: _load(p) for p in sorted(self.bronze_dir.glob("*/ingestion_summary.json"))}
+        silver = _load(self.silver_dir / "silver_metrics.json")
+        gold = _load(self.gold_dir / snapshot / "gold_metrics.json")
+        manifest = _load(self.manifest_path)
 
-        # Manifest data
-        manifest_file = self.raw_dir / "manifest.json"
-        manifest_data = {}
-        if manifest_file.exists():
-            with open(manifest_file, "r", encoding="utf-8") as f:
-                manifest_data = json.load(f)
+        checks: List[Dict[str, Any]] = []
 
-        demo_m = silver_data.get("demo", {})
-        drug_m = silver_data.get("drug", {})
-        reac_m = silver_data.get("reac", {})
-        outc_m = silver_data.get("outc", {})
+        def check(name: str, ok: bool, detail: str) -> None:
+            checks.append({"check": name, "passed": bool(ok), "detail": detail})
 
-        audit_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        for q, b in bronze.items():
+            bad = [t for t, m in b.get("tables", {}).items() if m.get("status") == "INGESTED" and m.get("reconciled") is False]
+            check(f"Bronze {q}: source records == ingested + quarantined", not bad, f"failing tables: {bad}" if bad else "all tables reconcile")
+            check(f"Bronze {q}: official provenance", b.get("verification_status") == "VERIFIED_OFFICIAL" and not b.get("is_synthetic"),
+                  b.get("verification_status", "unknown"))
+        for table, m in silver.get("tables", {}).items():
+            if table == "DEMO":
+                ok = m["raw_rows"] == m["retained_report_versions"] + m["excluded_rows"]
+            else:
+                ok = m.get("raw_rows") == m.get("retained_rows", 0) + m.get("excluded_rows", 0)
+            check(f"Silver {table}: raw == retained + excluded", ok, f"raw {m.get('raw_rows'):,}" if m.get("raw_rows") is not None else "n/a")
+        if gold and silver:
+            demo = silver["tables"]["DEMO"]
+            check("Gold canonical cases == Silver latest canonical cases (latest snapshot)",
+                  snapshot != "latest" or gold["canonical_cases"] == demo["canonical_cases_latest"],
+                  f"gold {gold['canonical_cases']:,} vs silver {demo['canonical_cases_latest']:,}")
 
-        # Compile machine-readable metrics
-        consolidated_metrics = {
-            "audit_timestamp": audit_timestamp,
-            "snapshot_name": snapshot_name,
-            "manifest_archives": manifest_data.get("archives", {}),
-            "demo": demo_m,
-            "drug": drug_m,
-            "reac": reac_m,
-            "outc": outc_m,
-            "metric_definitions": {
-                "case_version_reduction_rate": "100.0 * (superseded_versions + exact_duplicates) / post_cutoff_demo_rows",
-                "table_retention_rate": "100.0 * retained_canonical_rows / raw_input_rows",
-                "orphan_quarantine_rate": "100.0 * quarantined_orphan_rows / raw_input_rows"
-            }
+        return {
+            "audit_timestamp": datetime.now(timezone.utc).isoformat(), "snapshot": snapshot,
+            "manifest_archives": manifest.get("archives", {}), "bronze": bronze, "silver": silver, "gold": gold,
+            "checks": checks, "all_checks_passed": bool(checks) and all(c["passed"] for c in checks),
         }
 
-        # Save JSON
-        json_out = self.silver_dir / "data_quality_metrics.json"
-        with open(json_out, "w", encoding="utf-8") as jf:
-            json.dump(consolidated_metrics, jf, indent=2)
+    def generate_report(self, snapshot: str = "latest") -> Dict[str, Any]:
+        data = self.collect(snapshot)
+        (self.silver_dir).mkdir(parents=True, exist_ok=True)
+        (self.silver_dir / "data_quality_metrics.json").write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+        (self.reports_dir / "data_quality_report.md").write_text(self.render(data), encoding="utf-8")
+        logger.info("Data quality report written (%d checks, all passed: %s)", len(data["checks"]), data["all_checks_passed"])
+        return data
 
-        # Generate Markdown Report
-        md_lines = [
-            "# PharmaSafe Automated Data-Quality & Pipeline Audit Report",
-            f"**Audit Generated:** {audit_timestamp}  ",
-            f"**Evaluation Snapshot:** `{snapshot_name}`  ",
-            "**Pipeline Status:** PASSED QUALITY AUDIT  \n",
-            "---",
-            "## 1. Executive Summary",
-            "This report documents the automated quality verification, schema conformance, version deduplication, "
-            "and orphan handling performed by the PharmaSafe Medallion Pipeline (Bronze &rarr; Silver). "
-            "All transformations are deterministic, auditable, and non-destructive to raw source data.\n",
-            "---",
-            "## 2. Ingested Quarters & Provenance Tracking",
-            "| Quarter | Filename | Size (Bytes) | SHA-256 Checksum | Verification Status |",
-            "| :--- | :--- | :--- | :--- | :--- |"
+    @staticmethod
+    def render(d: Dict[str, Any]) -> str:
+        L: List[str] = [
+            "# PharmaSafe Data Quality & Pipeline Audit",
+            f"Generated: {d['audit_timestamp']}  |  Gold snapshot: `{d['snapshot']}`\n",
+            f"**Verdict:** {'ALL CHECKS PASSED' if d['all_checks_passed'] else 'CHECKS FAILED OR INCOMPLETE — see section 6'} "
+            f"({sum(c['passed'] for c in d['checks'])}/{len(d['checks'])})\n",
+            "## 1. Source archives\n",
+            "| Quarter | File | Size (MB) | SHA-256 (prefix) | Status |", "| :--- | :--- | ---: | :--- | :--- |",
         ]
+        for q, a in d["manifest_archives"].items():
+            L.append(f"| {q} | `{a.get('filename')}` | {a.get('file_size_mb')} | `{a.get('sha256_checksum', '')[:16]}…` | {a.get('verification_status')} |")
 
-        archives = manifest_data.get("archives", {})
-        if archives:
-            for qk, qinfo in archives.items():
-                md_lines.append(
-                    f"| {qk} | `{qinfo.get('filename')}` | {qinfo.get('file_size_bytes'):,} | "
-                    f"`{qinfo.get('sha256_checksum', '')[:16]}...` | **{qinfo.get('verification_status')}** |"
-                )
-        else:
-            md_lines.append("| *N/A (Direct Synthetic Ingestion)* | *synthetic_archive* | *N/A* | *N/A* | VERIFIED |")
+        L += ["", "## 2. Bronze ingestion (rows are table records, not cases)\n",
+              "| Quarter | Table | Source records | Ingested | Quarantined | Reconciled |", "| :--- | :--- | ---: | ---: | ---: | :---: |"]
+        for q, b in d["bronze"].items():
+            for t, m in b.get("tables", {}).items():
+                if m.get("status") == "INGESTED":
+                    L.append(f"| {q} | {t} | {m.get('source_records', m.get('source_nonblank_lines', 0)):,} | {m['rows_ingested']:,} | "
+                             f"{m.get('rows_quarantined', 0):,} | {'yes' if m.get('reconciled', True) else '**NO**'} |")
 
-        md_lines.extend([
-            "\n---",
-            "## 3. Case Deduplication & Version Resolution (DEMO)",
-            "The analytical unit is the **Unique Eligible Case** (`caseid`). Raw reports (`primaryid`) "
-            "containing follow-up updates or duplicate submissions are resolved deterministically.\n",
-            "| Metric | Count | Rate / Proportion | Definition / Formula |",
-            "| :--- | :--- | :--- | :--- |",
-            f"| **Raw DEMO Rows Ingested** | {demo_m.get('initial_demo_rows', 0):,} | 100.0% | Denominator for pre-cutoff ingestion |",
-            f"| **Post-Cutoff DEMO Rows** | {demo_m.get('post_cutoff_rows', 0):,} | - | Reports on or before snapshot cutoff date |",
-            f"| **Exact Duplicate Rows Removed** | {demo_m.get('exact_duplicate_rows', 0):,} | - | Identical across all non-metadata fields |",
-            f"| **Superseded Versions Excluded** | {demo_m.get('superseded_versions_count', 0):,} | - | Subsumed by higher `caseversion` or newer `fda_dt` |",
-            f"| **Canonical Cases Retained** | **{demo_m.get('canonical_case_count', 0):,}** | - | Unique winning case representations |",
-            f"| **Case Version Reduction Rate** | - | **{demo_m.get('case_version_reduction_pct', 0.0)}%** | `100 * (Superseded + Dups) / PostCutoffRows` |",
-            "\n> **Deduplication Hierarchy Rule:**  ",
-            "> `Window.partitionBy('caseid').orderBy(caseversion DESC, fda_dt DESC, primaryid DESC)`  ",
-            "> Excluded records are quarantined in `data/silver/quarantine/` for auditability.\n",
-            "---",
-            "## 4. Relational Integrity & Child Table Quarantine",
-            "Child tables (`DRUG`, `REAC`, `OUTC`) must join to the canonical `primaryid`. Orphan records "
-            "and superseded child entries are isolated into quarantine Parquet files.\n",
-            "| Table | Raw Rows | Retained Rows | Quarantined Orphans | Retention Rate | Quarantine Rate |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- |",
-            f"| **DRUG** | {drug_m.get('drug_raw_count', 0):,} | {drug_m.get('drug_retained_count', 0):,} | {drug_m.get('drug_orphans_quarantined', 0):,} | {drug_m.get('drug_retention_pct', 0.0)}% | {round(100.0 - drug_m.get('drug_retention_pct', 0.0), 2)}% |",
-            f"| **REAC** | {reac_m.get('reac_raw_count', 0):,} | {reac_m.get('reac_retained_count', 0):,} | {reac_m.get('reac_orphans_quarantined', 0):,} | {reac_m.get('reac_retention_pct', 0.0)}% | {round(100.0 - reac_m.get('reac_retention_pct', 0.0), 2)}% |",
-            f"| **OUTC** | {outc_m.get('outc_raw_count', 0):,} | {outc_m.get('outc_retained_count', 0):,} | {outc_m.get('outc_orphans_quarantined', 0):,} | {outc_m.get('outc_retention_pct', 0.0)}% | {round(100.0 - outc_m.get('outc_retention_pct', 0.0), 2)}% |",
-            "\n---",
-            "## 5. Field Normalization & Data Hygiene Summary",
-            "- **Drug Names:** Verbatim reported names (`drugname`) are preserved alongside normalized active ingredients (`clean_drug_name`).",
-            "- **Adverse Reactions:** MedDRA Preferred Terms (`pt`) are trimmed and uppercased (`clean_pt`).",
-            "- **Date Fields:** Unparseable or invalid dates (`99999999`, unformatted text) are converted to `NULL` (no invented values).",
-            "- **Malformed Rows:** Lines with delimiter count mismatches are rejected at the Bronze gate and stored in `quarantine/` JSON.",
-            "\n---",
-            "## 6. Audit Verdict",
-            "> **ACCEPTANCE CRITERIA STATUS: PASSED**  ",
-            "> The Medallion pipeline successfully enforces relational integrity, removes duplicates deterministically, "
-            "> preserves raw source files, isolates non-canonical records, and provides verifiable audit metrics."
-        ])
+        demo = d["silver"].get("tables", {}).get("DEMO", {})
+        if demo:
+            L += ["", "## 3. Case version handling (DEMO)\n", "| Measure | Count |", "| :--- | ---: |",
+                  f"| Raw DEMO report rows | {demo['raw_rows']:,} |",
+                  f"| Excluded rows | {demo['excluded_rows']:,} |"]
+            for reason, n in sorted(demo.get("excluded_by_reason", {}).items()):
+                L.append(f"| &nbsp;&nbsp;{reason} | {n:,} |")
+            L += [f"| Report versions retained | {demo['retained_report_versions']:,} |",
+                  f"| Superseded versions | {demo['superseded_versions']:,} |",
+                  f"| Versions never canonical at any quarter end | {demo['versions_never_canonical']:,} |",
+                  f"| Versions with missing/invalid caseversion | {demo['versions_missing_caseversion']:,} |",
+                  f"| Cases removed by FDA deletion lists | {demo['cases_removed_by_fda_deletion']:,} |",
+                  f"| **Canonical cases (latest view)** | **{demo['canonical_cases_latest']:,}** |",
+                  "", f"Ranking rule: {d['silver'].get('deduplication_policy')}."]
 
-        report_md_path = self.reports_dir / "data_quality_report.md"
-        with open(report_md_path, "w", encoding="utf-8") as rmf:
-            rmf.write("\n".join(md_lines) + "\n")
+        L += ["", "## 4. Relational integrity of child tables\n",
+              "| Table | Raw rows | Retained | Excluded | Retention | Exclusion reasons |", "| :--- | ---: | ---: | ---: | ---: | :--- |"]
+        for t, m in d["silver"].get("tables", {}).items():
+            if t == "DEMO" or "raw_rows" not in m:
+                continue
+            reasons = "; ".join(f"{k}: {v:,}" for k, v in sorted(m.get("excluded_by_reason", {}).items())) or "—"
+            L.append(f"| {t} | {m['raw_rows']:,} | {m['retained_rows']:,} | {m['excluded_rows']:,} | {m['retention_pct']}% | {reasons} |")
+        L.append("\nSuperseded case versions are *not* orphans: their child rows stay in Silver and are excluded from Gold by version.")
 
-        logger.info("Data Quality Report written to %s and %s", report_md_path, json_out)
-        return consolidated_metrics
+        L += ["", "## 5. Missing values in key fields (% of retained rows)\n", "| Table | Field | Missing % |", "| :--- | :--- | ---: |"]
+        for t, cols in KEY_COLUMNS.items():
+            prof = d["silver"].get("tables", {}).get(t, {}).get("missing_pct", {})
+            for c in cols:
+                if c in prof:
+                    L.append(f"| {t} | {c} | {prof[c]} |")
 
+        g = d.get("gold")
+        if g:
+            L += ["", "## Gold population\n", f"- Canonical cases: **{g['canonical_cases']:,}**; drug ingredients/names: {g['distinct_drugs']:,}; "
+                  f"reaction terms: {g['distinct_reactions']:,}; report quarters: {', '.join(g['report_quarters'])}"]
+            for p, s in g.get("signals", {}).items():
+                L.append(f"- Policy `{p}` (roles {', '.join(s['target_roles'])}): N = {s['eligible_cases_N']:,}, "
+                         f"pairs stored {s['pairs']:,}, potential signals {s['potential_signals']:,}")
+
+        L += ["", "## 6. Verification checks\n", "| Check | Result | Detail |", "| :--- | :---: | :--- |"]
+        for c in d["checks"]:
+            L.append(f"| {c['check']} | {'pass' if c['passed'] else '**FAIL**'} | {c['detail']} |")
+        return "\n".join(L) + "\n"

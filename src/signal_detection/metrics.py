@@ -8,7 +8,7 @@ Implements validated pharmacovigilance disproportionality algorithms:
 """
 
 import math
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 def calculate_contingency_counts(
@@ -125,25 +125,35 @@ def calculate_prr(
     }
 
 
+SIGNAL_STATUS = "POTENTIAL_SIGNAL"
+NOT_FLAGGED_STATUS = "NOT_FLAGGED"
+
+
 def evaluate_screening_status(
     observed_cases: int,
     ror_ci_lower: float,
     prr: float,
     min_cases: int = 3,
     min_ror_ci_lower: float = 1.0,
-    min_prr: float = 2.0
+    min_prr: float = 2.0,
+    chi2: Optional[float] = None,
+    min_chi2: Optional[float] = None
 ) -> tuple[str, list[str]]:
     """
-    Evaluates whether a drug-event pair satisfies regulatory safety screening rules.
-    Returns (status, reasons). Status is 'SIGNAL' or 'NON_SIGNAL'.
+    Evaluates a drug-event pair against the configured project screening criteria
+    (a >= min_cases, ROR lower CI > min_ror_ci_lower, PRR >= min_prr, and chi2 >= min_chi2 when set).
+    These are screening choices, not clinical standards.
+    Returns (status, reasons). Status is 'POTENTIAL_SIGNAL' or 'NOT_FLAGGED'.
     """
     reasons = []
     if observed_cases < min_cases:
         reasons.append(f"Observed cases ({observed_cases}) < threshold ({min_cases})")
     if ror_ci_lower <= min_ror_ci_lower:
-        reasons.append(f"ROR 95% CI lower ({ror_ci_lower}) <= threshold ({min_ror_ci_lower})")
+        reasons.append(f"ROR 95% CI lower ({ror_ci_lower:.4g}) <= threshold ({min_ror_ci_lower})")
     if prr < min_prr:
-        reasons.append(f"PRR ({prr}) < threshold ({min_prr})")
+        reasons.append(f"PRR ({prr:.4g}) < threshold ({min_prr})")
+    if min_chi2 is not None and chi2 is not None and chi2 < min_chi2:
+        reasons.append(f"Chi2 Yates ({chi2:.4g}) < threshold ({min_chi2})")
 
-    status = "SIGNAL" if len(reasons) == 0 else "NON_SIGNAL"
+    status = SIGNAL_STATUS if len(reasons) == 0 else NOT_FLAGGED_STATUS
     return status, reasons

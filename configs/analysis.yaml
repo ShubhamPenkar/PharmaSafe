@@ -43,3 +43,27 @@ export:
   top_signals_limit: 1000
   gold_signals_path: "data/gold/safety_signals.parquet"
   gold_trends_path: "data/gold/quarterly_safety_trends.parquet"
+
+# Gold output controls
+output:
+  # Drug-event pairs with fewer observed cases than this are not stored (they can never pass screening)
+  min_stored_cases: 3
+
+# Temporal analytics (source quarter = quarter of the canonical report version)
+temporal:
+  min_cases_per_quarter: 3
+  # Discovery / evaluation split for temporal validation (quarters inclusive)
+  discovery_quarters: ["2024Q3", "2024Q4", "2025Q1", "2025Q2"]
+  evaluation_quarters: ["2025Q3", "2025Q4", "2026Q1", "2026Q2"]
+
+# Drug-combination (co-reporting) analytics
+combinations:
+  target_roles: ["PS", "SS"]
+  min_pair_cases: 10
+  min_cases: 3
+  top_pairs_limit: 20000
+
+# Robustness grid used by the validation report
+robustness:
+  min_cases: [3, 5, 10]
+  min_prr: [1.5, 2.0, 3.0]

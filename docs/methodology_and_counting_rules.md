@@ -18,16 +18,14 @@ The objective is to detect potential drug safety signals—statistical dispropor
 - Each follow-up generates a new `primaryid` with an incremented `caseversion` and a new receipt date (`fda_dt`).
 - If an analytics pipeline aggregates raw records across quarters without case-level deduplication, repeated follow-ups will artificially inflate report counts for severe or high-profile cases, creating severe statistical artifacts and false positive signals.
 
-### 2.2 Deterministic Deduplication Algorithm
-To ensure reproducibility and scientific integrity:
-1. Group all records in the `DEMO` table by `caseid`.
-2. Rank records within each `caseid` window using the following deterministic hierarchy:
-   - **Primary sort key:** `caseversion` descending (select the latest version).
-   - **Tiebreaker 1:** `fda_dt` (FDA receipt date) descending.
-   - **Tiebreaker 2:** `primaryid` descending (deterministic numeric tiebreaker).
-3. The top-ranked record is designated the **Canonical Case Representation**.
-4. The winning `primaryid` is retained; all superseded `primaryid`s for that `caseid` are filtered out.
-5. In child tables (`DRUG`, `REAC`, `OUTC`, `INDI`, `THER`, `RPSR`), only rows matching the Canonical Case `primaryid` are retained. This eliminates orphan rows and prevents mixing conflicting versions of the same case.
+### 2.2 Report duplicates, case versions and validity intervals
+1. **Report-level duplicates** (the same `primaryid` more than once, across or within quarter files) are classified, never silently merged: `EXACT_DUPLICATE`, `PRIMARYID_RESUBMITTED_LATER` (latest quarter kept) or `CONFLICTING_DUPLICATE_PRIMARYID`. Rows with a non-numeric `primaryid`/`caseid` are quarantined as `INVALID_IDENTIFIER`.
+2. **Case versions.** Every retained report version of a case is kept and ranked by `caseversion` DESC, then `fda_dt` DESC, then numeric `primaryid` DESC (NULLs last). A missing or invalid `caseversion` is never replaced by an assumed value; it ranks below any known version.
+3. **Validity interval.** Each version carries `valid_from_quarter` (the quarter it was published) and `valid_to_quarter` (exclusive: the first quarter in which a higher-ranked version, or an FDA deletion for the case, appeared). The canonical case set *as of quarter Q* is the versions with `valid_from <= Q < valid_to`. A follow-up published later therefore never rewrites an earlier snapshot.
+4. **FDA deleted cases.** The `DELETED` list shipped in each quarter removes the case from the canonical set from that quarter on.
+5. **Child tables** keep rows for every retained version. A child row is quarantined only when it is a true orphan (`ORPHAN_NO_DEMO_RECORD`), its parent was quarantined (`PARENT_DEMO_QUARANTINED`), its parent came from another quarter file (`PARENT_FROM_OTHER_QUARTER`) or it is an exact duplicate. Superseded versions are not orphans; they drop out in Gold by joining to the canonical `primaryid`.
+
+Two views are produced: `latest` (currently canonical version of every non-deleted case) and `asof_<quarter>` snapshots.
 
 ---
 
@@ -38,6 +36,11 @@ The unit of analysis is the **Unique Eligible Case**.
 - If a patient report mentions the same drug multiple times (e.g. different dosage lines in `DRUG`), the case is counted **once** for that drug.
 - If a patient report mentions the same reaction term multiple times (e.g. MedDRA PT listed twice in `REAC`), the case is counted **once** for that reaction.
 - Joins between `DEMO`, `DRUG`, and `REAC` are deduplicated at the `(caseid, drug_name)` and `(caseid, reaction_term)` level before constructing contingency tables. This avoids Cartesian join explosion.
+
+### 3.1.1 Drug key and eligible population
+- **Drug key:** the FDA-mapped active ingredient (`prod_ai`, uppercased, whitespace-collapsed); if absent, the reported `drugname`. Original names are kept alongside (`drugname`, `reported_names`). Brand/generic spellings FDA did not map are not merged.
+- **Eligible case:** a canonical case with at least one drug in the selected role policy **and** at least one reported reaction. N is the number of eligible cases, and drug and reaction counts are taken over those same cases, so a + b + c + d = N for every pair.
+- **Reaction term:** the MedDRA preferred term (`pt`), uppercased; no higher-level grouping.
 
 ### 3.2 Drug Role Population Policy
 FAERS classifies each reported drug with a role code (`role_cod`):
@@ -100,10 +103,24 @@ If any cell ($a, b, c, d$) is equal to 0, direct calculation yields division by 
 When any cell equals 0, PharmaSafe applies the standard Haldane-Anscombe correction by adding $0.5$ to each cell in the contingency table ($a+0.5, b+0.5, c+0.5, d+0.5$).
 
 ### 4.5 Standard Regulatory Screening Thresholds
-A drug–event pair is flagged as a **Candidate Safety Signal** if all of the following criteria are satisfied:
+A drug–event pair is flagged as a **Potential Safety Signal** (`POTENTIAL_SIGNAL`; otherwise `NOT_FLAGGED`) if all of the following project screening criteria are satisfied (they are configurable in `configs/analysis.yaml`, are not clinical or regulatory standards, and are sensitivity-tested in the validation report):
 1. **Minimum Case Count ($a$):** $a \ge 3$ (eliminates noise from isolated single/double occurrences).
 2. **Lower Confidence Bound of ROR:** $\text{ROR}_{025} > 1.0$ (statistically significant disproportionality at $\alpha=0.05$).
 3. **PRR Disproportionality:** $\text{PRR} \ge 2.0$.
+4. **Chi-square (Yates) ≥ 4.0** (configured via `min_chi2`).
+
+Pairs with fewer than `output.min_stored_cases` cases are not stored in Gold because they can never pass screening.
+
+---
+
+## 4.6 Temporal analytics
+A case's *quarter* is the source (FDA publication) quarter of its canonical report version; it is distinct from event date, receipt date and extraction date. Quarters partition the case population, and per-quarter statistics use only that quarter's cases. Changes describe reporting patterns, not incidence.
+
+## 4.7 Drug-combination analytics
+For drug pairs co-reported in an eligible case (suspect roles by default), a = cases with both drugs and the reaction; the comparison group is all other eligible cases. Single-drug RORs are shown as context. Co-reporting is not evidence of a pharmacological interaction.
+
+## 4.8 Validation
+Reference-signal recovery (with negative controls and explicit "not evaluable" outcomes), a threshold/role-policy robustness grid, and a discovery-quarter to evaluation-quarter check are produced by `src/validation/benchmark_evaluator.py` into `reports/validation_report.md`.
 
 ---
 

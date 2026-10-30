@@ -13,7 +13,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.config_loader import load_data_sources_config, load_analysis_config, load_reference_signals
-from src.utils.spark_session import get_spark_session, stop_spark_session
 
 
 def test_core_dependencies_import():
@@ -53,17 +52,13 @@ def test_configurations_load():
     assert len(ref_signals["reference_signals"]) > 0
 
 
-def test_spark_session_lifecycle():
-    """Verify that PySpark initializes, computes a basic aggregation, and stops cleanly."""
-    spark = get_spark_session(app_name="PharmaSafeSmokeTest", master="local[1]", shuffle_partitions=1)
-    try:
-        data = [("Aspirin", "Headache", 10), ("Aspirin", "Nausea", 5), ("Ibuprofen", "Headache", 8)]
-        df = spark.createDataFrame(data, ["drug", "reaction", "count"])
-        assert df.count() == 3
+def test_spark_session_lifecycle(spark):
+    """Verify that PySpark computes a basic aggregation on the shared test session."""
+    data = [("Aspirin", "Headache", 10), ("Aspirin", "Nausea", 5), ("Ibuprofen", "Headache", 8)]
+    df = spark.createDataFrame(data, ["drug", "reaction", "count"])
+    assert df.count() == 3
 
-        agg = df.groupBy("drug").sum("count").collect()
-        drug_counts = {row["drug"]: row["sum(count)"] for row in agg}
-        assert drug_counts["Aspirin"] == 15
-        assert drug_counts["Ibuprofen"] == 8
-    finally:
-        stop_spark_session(spark)
+    agg = df.groupBy("drug").sum("count").collect()
+    drug_counts = {row["drug"]: row["sum(count)"] for row in agg}
+    assert drug_counts["Aspirin"] == 15
+    assert drug_counts["Ibuprofen"] == 8

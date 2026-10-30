@@ -1,301 +1,302 @@
 ﻿"""
-PharmaSafe Silver Layer Preprocessing Pipeline
-Cleans, standardizes, validates relational integrity, and deduplicates FAERS data.
-Satisfies the Critical Temporal Requirement:
-- Latest-version snapshot for cross-sectional analysis across the entire observation period.
-- Time-aware historical quarterly snapshots (with explicit quarter cutoff dates)
-  ensuring later follow-up reports do not retroactively rewrite historical quarterly data.
-- Quarantines orphan child records and exact duplicate rows.
-- Saves analytics-ready tables as Parquet under data/silver/.
+PharmaSafe Silver Layer Preprocessing Pipeline (PySpark)
+Cleans, standardizes, deduplicates and relationally validates all seven FAERS tables.
+
+Outputs under data/silver/:
+  demo_versions/   every retained DEMO report version with its validity interval (time-aware view)
+  demo/            the currently canonical version of every non-deleted case (latest view)
+  drug/ reac/ outc/ indi/ ther/ rpsr/
+                   child rows linked to a retained DEMO version (all versions, so any as-of
+                   snapshot can be rebuilt by joining to canonical_cases_asof(...))
+  deleted_cases/   caseids FDA listed as deleted, with the first quarter they were listed
+  quarantine/<table>/   excluded rows with a quarantine_reason
+  silver_metrics.json   raw vs retained counts, duplicates, orphans, missing-value profiles
+
+Child-row exclusion reasons distinguish genuinely orphaned records from version bookkeeping:
+  ORPHAN_NO_DEMO_RECORD        primaryid never appears in DEMO
+  PARENT_DEMO_QUARANTINED      parent DEMO row exists but was itself quarantined (e.g. invalid id)
+  PARENT_FROM_OTHER_QUARTER    the primaryid's retained DEMO row came from a different quarter file
+  EXACT_DUPLICATE              identical child row repeated within the same report
+Superseded case versions are NOT orphans: their child rows stay in Silver and drop out in Gold.
 """
 
-import os
 import sys
 import json
-import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
-import pandas as pd
+
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import col, concat_ws, count, lit, sum as spark_sum, when
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils.logger import get_logger
-from src.utils.config_loader import load_data_sources_config, get_project_root
+from src.utils.config_loader import load_data_sources_config, resolve_path
+from src.utils.spark_session import get_spark_session
+from src.preprocessing.normalization import (
+    AGE_UNIT_TO_YEARS, WEIGHT_UNIT_TO_KG, VALID_ROLE_CODES, VALID_OUTCOME_CODES, VALID_SEX_CODES,
+    blank_to_null, normalize_term, is_numeric_id, try_int, try_double, with_parsed_dates,
+    unit_conversion, coded_value,
+)
+from src.preprocessing.drug_normalization import ingredient_array
+from src.preprocessing.case_deduplicator import (
+    resolve_report_duplicates, build_case_version_history, canonical_cases_asof, version_history_metrics,
+)
 
 logger = get_logger("PharmaSafe.Silver")
 
+CHILD_TABLES = ["DRUG", "REAC", "OUTC", "INDI", "THER", "RPSR"]
+METADATA_PREFIX = "_"
+DEMO_DATE_COLUMNS = ["event_dt", "mfr_dt", "init_fda_dt", "fda_dt", "rept_dt"]
+THER_DATE_COLUMNS = ["start_dt", "end_dt"]
 
-def parse_fda_date_safe(date_str: Any) -> Optional[str]:
-    """
-    Safely parses an FDA date string (expected format YYYYMMDD or partial YYYYMM).
-    Returns normalized YYYYMMDD string or None if missing, malformed, or unparseable.
-    Never invents or guesses date values.
-    """
-    if pd.isna(date_str) or date_str is None:
-        return None
-    s = str(date_str).strip()
-    # Check if purely 8 digits and reasonable year (1900-2100)
-    if re.match(r"^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$", s):
-        return s
-    # Partial year-month (YYYYMM): preserve as YYYYMM
-    if re.match(r"^(19|20)\d{2}(0[1-9]|1[0-2])$", s):
-        return s
-    return None
+
+def source_columns(df: DataFrame) -> List[str]:
+    """Columns that came from the FDA file (excludes pipeline metadata such as _source_quarter)."""
+    return [c for c in df.columns if not c.startswith(METADATA_PREFIX)]
+
+
+def null_profile(df: DataFrame, columns: List[str]) -> Dict[str, float]:
+    """Percentage of NULL values per column, computed in one aggregation."""
+    if not columns:
+        return {}
+    row = df.agg(
+        count(lit(1)).alias("__n"),
+        *[spark_sum(when(col(c).isNull(), 1).otherwise(0)).alias(c) for c in columns]
+    ).collect()[0].asDict()
+    n = row.pop("__n")
+    return {c: round(100.0 * (v or 0) / n, 2) if n else 0.0 for c, v in row.items()}
+
+
+def standardize_demo(demo: DataFrame) -> DataFrame:
+    """Typed and normalized DEMO fields alongside the reported values."""
+    df = with_parsed_dates(demo, DEMO_DATE_COLUMNS)
+    return (
+        df
+        .withColumn("caseversion_int", try_int("caseversion"))
+        .withColumn("age_num", try_double("age"))
+        .withColumn("age_years", unit_conversion("age", "age_cod", AGE_UNIT_TO_YEARS))
+        .withColumn("wt_kg", unit_conversion("wt", "wt_cod", WEIGHT_UNIT_TO_KG))
+        .withColumn("sex_norm", coded_value("sex", VALID_SEX_CODES))
+        .withColumn("occr_country_norm", normalize_term("occr_country"))
+        .withColumn("reporter_country_norm", normalize_term("reporter_country"))
+    )
+
+
+def standardize_child(table: str, df: DataFrame) -> DataFrame:
+    """Table-specific normalizations; reported values are kept unchanged."""
+    if table == "DRUG":
+        return (
+            df
+            .withColumn("drug_seq_int", try_int("drug_seq"))
+            .withColumn("role_cod_norm", coded_value("role_cod", VALID_ROLE_CODES))
+            .withColumn("drugname_norm", normalize_term("drugname"))
+            .withColumn("prod_ai_norm", normalize_term("prod_ai"))
+            # FDA-mapped active ingredient (prod_ai) is the source of the analysis key; fall back to the reported name
+            .withColumn(
+                "drug_key_source",
+                when(col("prod_ai_norm").isNotNull(), lit("prod_ai"))
+                .when(col("drugname_norm").isNotNull(), lit("drugname"))
+            )
+            # Ingredient-level keys: salts stripped, combination products split (see drug_normalization.py)
+            .withColumn("drug_ingredients", ingredient_array("prod_ai_norm", "drugname_norm"))
+            .withColumn("drug_key", concat_ws("\\", col("drug_ingredients")))
+        )
+    if table == "REAC":
+        return df.withColumn("pt_norm", normalize_term("pt"))
+    if table == "OUTC":
+        return df.withColumn("outc_cod_norm", coded_value("outc_cod", VALID_OUTCOME_CODES))
+    if table == "INDI":
+        return df.withColumn("indi_drug_seq_int", try_int("indi_drug_seq")).withColumn("indi_pt_norm", normalize_term("indi_pt"))
+    if table == "THER":
+        return (
+            with_parsed_dates(df, THER_DATE_COLUMNS)
+            .withColumn("dsg_drug_seq_int", try_int("dsg_drug_seq"))
+            .withColumn("dur_num", try_double("dur"))
+        )
+    if table == "RPSR":
+        return df.withColumn("rpsr_cod_norm", normalize_term("rpsr_cod"))
+    return df
 
 
 class SilverPipeline:
-    """
-    Executes Silver layer standardization, relational validation, deterministic deduplication,
-    orphan quarantining, and temporal quarterly snapshots.
-    """
+    """Executes Silver standardization, deduplication, version history and relational validation."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, spark: Optional[SparkSession] = None):
         self.config = config or load_data_sources_config()
-        self.root = get_project_root()
-        self.bronze_dir = self.root / self.config.get("storage", {}).get("bronze_dir", "data/bronze")
-        self.silver_dir = self.root / self.config.get("storage", {}).get("silver_dir", "data/silver")
-        self.silver_dir.mkdir(parents=True, exist_ok=True)
-        self.quarantine_dir = self.silver_dir / "quarantine"
-        self.quarantine_dir.mkdir(parents=True, exist_ok=True)
+        storage = self.config.get("storage", {})
+        self.bronze_dir = resolve_path(storage.get("bronze_dir", "data/bronze"))
+        self.silver_dir = resolve_path(storage.get("silver_dir", "data/silver"))
+        self._spark = spark
 
-    def load_bronze_table(self, table_name: str, quarters: Optional[List[str]] = None) -> pd.DataFrame:
-        """
-        Loads and concatenates a Bronze Parquet table across specified or all available quarters.
-        """
-        dfs = []
-        pattern = f"*/{table_name.lower()}.parquet"
-        found_files = list(self.bronze_dir.glob(pattern))
+    @property
+    def spark(self) -> SparkSession:
+        if self._spark is None:
+            self._spark = get_spark_session(app_name="PharmaSafe.Silver")
+        return self._spark
 
-        if not found_files:
-            logger.warning("No Bronze files found for table %s in %s", table_name, self.bronze_dir)
-            return pd.DataFrame()
+    def available_quarters(self) -> List[str]:
+        """Quarters with a completed Bronze ingestion (summary written last)."""
+        return sorted(p.parent.name for p in self.bronze_dir.glob("*/ingestion_summary.json"))
 
-        for f in found_files:
-            q_dir = f.parent.name
-            if quarters and q_dir.upper() not in [q.upper() for q in quarters]:
-                continue
-            try:
-                df = pd.read_parquet(f)
-                dfs.append(df)
-            except Exception as e:
-                logger.error("Failed reading Bronze parquet %s: %s", f, e)
-
-        if not dfs:
-            return pd.DataFrame()
-        combined = pd.concat(dfs, ignore_index=True)
-        logger.info("Loaded Bronze table %s: %d total rows from %d files", table_name, len(combined), len(dfs))
+    def load_bronze_table(self, table_name: str, quarters: List[str]) -> Optional[DataFrame]:
+        """Unions one Bronze table across quarters; columns added or dropped by FDA are NULL-filled."""
+        frames = []
+        for q in quarters:
+            path = self.bronze_dir / q / table_name.lower()
+            if path.exists():
+                frames.append(self.spark.read.parquet(str(path)))
+            else:
+                logger.warning("Bronze table %s missing for %s", table_name, q)
+        if not frames:
+            return None
+        combined = frames[0]
+        for f in frames[1:]:
+            combined = combined.unionByName(f, allowMissingColumns=True)
         return combined
 
-    @staticmethod
-    def deduplicate_demo(
-        demo_df: pd.DataFrame,
-        cutoff_date: Optional[str] = None
-    ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
-        """
-        Executes deterministic case deduplication on DEMO records:
-        1. Optionally filter by cutoff_date (fda_dt <= cutoff_date) for historical snapshots.
-        2. Profile exact duplicate rows (identical in all user columns) and remove them.
-        3. For each caseid, select canonical record using:
-           - max caseversion (integer)
-           - tiebreaker 1: max fda_dt
-           - tiebreaker 2: max primaryid (deterministic string/int comparison)
-        Returns:
-            (canonical_df, superseded_and_duplicate_df, metrics)
-        """
-        initial_count = len(demo_df)
-        if initial_count == 0:
-            return pd.DataFrame(), pd.DataFrame(), {}
+    def _write(self, df: DataFrame, name: str) -> int:
+        out = self.silver_dir / name
+        df.write.mode("overwrite").parquet(str(out))
+        return self.spark.read.parquet(str(out)).count()
 
-        df = demo_df.copy()
-        df["_parsed_fda_dt"] = df["fda_dt"].apply(parse_fda_date_safe)
+    def _process_demo(self, quarters: List[str]) -> Tuple[DataFrame, Dict[str, Any]]:
+        raw = self.load_bronze_table("DEMO", quarters)
+        if raw is None:
+            raise FileNotFoundError(f"No Bronze DEMO data found under {self.bronze_dir} for {quarters}")
+        src_cols = source_columns(raw)
+        raw = blank_to_null(raw, src_cols)
+        raw_count = raw.count()
 
-        # Apply time-aware cutoff if specified
-        if cutoff_date:
-            df = df[df["_parsed_fda_dt"].fillna("").le(cutoff_date)].copy()
-        
-        post_cutoff_count = len(df)
+        valid_ids = is_numeric_id("primaryid") & is_numeric_id("caseid")
+        invalid = raw.filter(~valid_ids).withColumn("quarantine_reason", lit("INVALID_IDENTIFIER"))
+        deduped, duplicates = resolve_report_duplicates(raw.filter(valid_ids), src_cols)
 
-        # Profile and isolate exact duplicates
-        cols_for_exact_match = [c for c in df.columns if not c.startswith("_")]
-        exact_dups_mask = df.duplicated(subset=cols_for_exact_match, keep="first")
-        exact_duplicate_rows = df[exact_dups_mask].copy()
-        df_no_exact_dups = df[~exact_dups_mask].copy()
-        exact_duplicates_count = len(exact_duplicate_rows)
+        deleted_raw = self.load_bronze_table("DELETED", quarters)
+        deleted_cases = None
+        if deleted_raw is not None:
+            deleted_cases = deleted_raw.select("caseid", "_source_quarter").dropDuplicates()
+            self._write(deleted_cases, "deleted_cases")
+            deleted_cases = self.spark.read.parquet(str(self.silver_dir / "deleted_cases"))
 
-        # Convert version to numeric for proper sort comparison
-        df_no_exact_dups["_caseversion_num"] = pd.to_numeric(df_no_exact_dups["caseversion"], errors="coerce").fillna(1)
-        df_no_exact_dups["_fda_dt_str"] = df_no_exact_dups["_parsed_fda_dt"].fillna("")
-        df_no_exact_dups["_primaryid_str"] = df_no_exact_dups["primaryid"].astype(str)
+        history = build_case_version_history(standardize_demo(deduped), deleted_cases)
+        versions_written = self._write(history, "demo_versions")
+        history = self.spark.read.parquet(str(self.silver_dir / "demo_versions"))
+        canonical_written = self._write(canonical_cases_asof(history), "demo")
 
-        # Sort deterministically
-        df_sorted = df_no_exact_dups.sort_values(
-            by=["caseid", "_caseversion_num", "_fda_dt_str", "_primaryid_str"],
-            ascending=[True, False, False, False]
-        )
-
-        # Canonical records: first per caseid
-        canonical_mask = ~df_sorted.duplicated(subset=["caseid"], keep="first")
-        canonical_df = df_sorted[canonical_mask].copy()
-        superseded_df = df_sorted[~canonical_mask].copy()
-
-        # Clean helper columns
-        canonical_df.drop(columns=["_caseversion_num", "_fda_dt_str", "_primaryid_str"], inplace=True, errors="ignore")
-        superseded_df.drop(columns=["_caseversion_num", "_fda_dt_str", "_primaryid_str"], inplace=True, errors="ignore")
-
-        canonical_count = len(canonical_df)
-        superseded_count = len(superseded_df)
-        total_unique_cases = canonical_df["caseid"].nunique()
+        excluded = invalid.unionByName(duplicates.drop("_content_hash"), allowMissingColumns=True)
+        excluded_written = self._write(excluded, "quarantine/demo")
+        reasons = {r["quarantine_reason"]: r["count"] for r in
+                   self.spark.read.parquet(str(self.silver_dir / "quarantine/demo")).groupBy("quarantine_reason").count().collect()}
 
         metrics = {
-            "initial_demo_rows": initial_count,
-            "post_cutoff_rows": post_cutoff_count,
-            "exact_duplicate_rows": exact_duplicates_count,
-            "superseded_versions_count": superseded_count,
-            "canonical_case_count": canonical_count,
-            "unique_case_ids": total_unique_cases,
-            "case_version_reduction_pct": round(((superseded_count + exact_duplicates_count) / post_cutoff_count * 100.0), 2) if post_cutoff_count > 0 else 0.0
+            "raw_rows": raw_count,
+            "retained_report_versions": versions_written,
+            "excluded_rows": excluded_written,
+            "excluded_by_reason": reasons,
+            "canonical_cases_latest": canonical_written,
+            **version_history_metrics(history),
+            "missing_pct": null_profile(history, src_cols),
+        }
+        if raw_count != versions_written + excluded_written:
+            raise ValueError(f"DEMO accounting mismatch: raw {raw_count} != retained {versions_written} + excluded {excluded_written}")
+        return history, metrics
+
+    def _process_child(self, table: str, quarters: List[str], history: DataFrame, raw_demo_ids: DataFrame) -> Dict[str, Any]:
+        raw = self.load_bronze_table(table, quarters)
+        if raw is None:
+            return {"status": "MISSING_IN_BRONZE"}
+        src_cols = source_columns(raw)
+        raw = blank_to_null(raw, src_cols)
+        raw_count = raw.count()
+
+        # Exact duplicates within the same report and quarter file
+        deduped = raw.dropDuplicates(src_cols + ["_source_quarter"])
+        dup_count = raw_count - deduped.count()
+
+        parents = history.select(
+            col("primaryid"), col("_source_quarter"), col("caseid").alias("_demo_caseid"), lit(True).alias("_linked")
+        )
+        joined = deduped.join(parents, on=["primaryid", "_source_quarter"], how="left")
+        linked = joined.filter(col("_linked").isNotNull())
+
+        unlinked = (
+            joined.filter(col("_linked").isNull())
+            .join(raw_demo_ids, on="primaryid", how="left")
+            .withColumn(
+                "quarantine_reason",
+                when(col("_demo_status") == "retained", lit("PARENT_FROM_OTHER_QUARTER"))
+                .when(col("_demo_status") == "quarantined", lit("PARENT_DEMO_QUARANTINED"))
+                .otherwise(lit("ORPHAN_NO_DEMO_RECORD"))
+            )
+            .drop("_linked", "_demo_caseid", "_demo_status")
+        )
+
+        # caseid on child rows is informational; the parent DEMO caseid is authoritative
+        caseid_mismatch = linked.filter(col("caseid").isNotNull() & (col("caseid") != col("_demo_caseid"))).count() if "caseid" in linked.columns else 0
+        silver = standardize_child(
+            table,
+            linked.withColumnRenamed("caseid", "caseid_reported").withColumnRenamed("_demo_caseid", "caseid").drop("_linked")
+        )
+        retained = self._write(silver, table.lower())
+        quarantined = self._write(unlinked, f"quarantine/{table.lower()}")
+        reasons = {r["quarantine_reason"]: r["count"] for r in
+                   self.spark.read.parquet(str(self.silver_dir / f"quarantine/{table.lower()}")).groupBy("quarantine_reason").count().collect()}
+        if dup_count:
+            reasons["EXACT_DUPLICATE"] = dup_count
+
+        if raw_count != retained + quarantined + dup_count:
+            raise ValueError(f"{table} accounting mismatch: raw {raw_count} != {retained} + {quarantined} + {dup_count}")
+
+        return {
+            "raw_rows": raw_count,
+            "retained_rows": retained,
+            "excluded_rows": quarantined + dup_count,
+            "excluded_by_reason": reasons,
+            "retention_pct": round(100.0 * retained / raw_count, 2) if raw_count else 0.0,
+            "caseid_mismatch_rows": caseid_mismatch,
+            "missing_pct": null_profile(self.spark.read.parquet(str(self.silver_dir / table.lower())), src_cols),
         }
 
-        # Combine superseded and exact duplicates for auditable logging
-        all_excluded = pd.concat([exact_duplicate_rows, superseded_df], ignore_index=True)
-        return canonical_df, all_excluded, metrics
+    def run(self, quarters: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Builds the complete Silver layer from the given (or all available) Bronze quarters."""
+        quarters = sorted(q.upper() for q in (quarters or self.available_quarters()))
+        if not quarters:
+            raise FileNotFoundError(f"No completed Bronze quarters under {self.bronze_dir}")
+        started = datetime.now(timezone.utc)
+        logger.info("Building Silver layer from %d quarter(s): %s", len(quarters), quarters)
 
-    def process_silver_snapshot(
-        self,
-        quarters: Optional[List[str]] = None,
-        cutoff_date: Optional[str] = None,
-        snapshot_name: str = "latest"
-    ) -> Dict[str, Any]:
-        """
-        Executes complete Silver processing for a given temporal scope (e.g. 'latest' or 'historical_2024Q1').
-        """
-        logger.info("Executing Silver processing for snapshot '%s' (cutoff: %s)...", snapshot_name, cutoff_date)
-        snapshot_dir = self.silver_dir / snapshot_name
-        snapshot_dir.mkdir(parents=True, exist_ok=True)
-        quarantine_dir = self.quarantine_dir / snapshot_name
-        quarantine_dir.mkdir(parents=True, exist_ok=True)
+        if self.silver_dir.exists():
+            shutil.rmtree(self.silver_dir)
+        self.silver_dir.mkdir(parents=True)
 
-        # 1. DEMO
-        raw_demo = self.load_bronze_table("DEMO", quarters=quarters)
-        if raw_demo.empty:
-            logger.error("No DEMO records found to process.")
-            return {"status": "FAILED_NO_DEMO"}
+        history, demo_metrics = self._process_demo(quarters)
+        logger.info("DEMO: %d versions retained, %d canonical cases", demo_metrics["retained_report_versions"], demo_metrics["canonical_cases_latest"])
 
-        canonical_demo, excluded_demo, demo_metrics = self.deduplicate_demo(raw_demo, cutoff_date=cutoff_date)
-        canonical_primaryids = set(canonical_demo["primaryid"].astype(str))
+        demo_quarantine = self.spark.read.parquet(str(self.silver_dir / "quarantine/demo"))
+        raw_demo_ids = (
+            history.select("primaryid", lit("retained").alias("_demo_status"))
+            .unionByName(demo_quarantine.select("primaryid", lit("quarantined").alias("_demo_status")))
+            .dropDuplicates(["primaryid"])
+        )
 
-        # Save canonical DEMO
-        demo_out_path = snapshot_dir / "demo.parquet"
-        canonical_demo.to_parquet(demo_out_path, index=False, engine="pyarrow")
-        if not excluded_demo.empty:
-            excluded_demo.to_parquet(quarantine_dir / "demo_superseded_and_duplicates.parquet", index=False, engine="pyarrow")
+        tables = {"DEMO": demo_metrics}
+        for t in CHILD_TABLES:
+            tables[t] = self._process_child(t, quarters, history, raw_demo_ids)
+            logger.info("%s: %s", t, {k: v for k, v in tables[t].items() if k != "missing_pct"})
 
-        # 2. DRUG
-        raw_drug = self.load_bronze_table("DRUG", quarters=quarters)
-        drug_metrics = {}
-        if not raw_drug.empty:
-            raw_drug["_primaryid_str"] = raw_drug["primaryid"].astype(str)
-            # Link check: is primaryid in canonical DEMO?
-            canonical_drug_mask = raw_drug["_primaryid_str"].isin(canonical_primaryids)
-            canonical_drug = raw_drug[canonical_drug_mask].copy()
-            orphan_drug = raw_drug[~canonical_drug_mask].copy()
-
-            # Normalization: preserve original drugname and create clean_drug_name
-            canonical_drug["drugname_verbatim"] = canonical_drug["drugname"]
-            canonical_drug["clean_drug_name"] = (
-                canonical_drug["prod_ai"].fillna("").str.strip().str.upper()
-            )
-            # If prod_ai is empty, fallback to clean drugname
-            mask_empty_prod_ai = canonical_drug["clean_drug_name"] == ""
-            canonical_drug.loc[mask_empty_prod_ai, "clean_drug_name"] = (
-                canonical_drug.loc[mask_empty_prod_ai, "drugname"].fillna("").str.strip().str.upper()
-            )
-            canonical_drug["clean_role_cod"] = canonical_drug["role_cod"].fillna("UNKNOWN").str.strip().str.upper()
-
-            canonical_drug.drop(columns=["_primaryid_str"], inplace=True, errors="ignore")
-            orphan_drug.drop(columns=["_primaryid_str"], inplace=True, errors="ignore")
-
-            canonical_drug.to_parquet(snapshot_dir / "drug.parquet", index=False, engine="pyarrow")
-            if not orphan_drug.empty:
-                orphan_drug["quarantine_reason"] = "ORPHAN_CHILD_NO_CANONICAL_DEMO"
-                orphan_drug.to_parquet(quarantine_dir / "drug_orphans.parquet", index=False, engine="pyarrow")
-
-            drug_metrics = {
-                "drug_raw_count": len(raw_drug),
-                "drug_retained_count": len(canonical_drug),
-                "drug_orphans_quarantined": len(orphan_drug),
-                "drug_retention_pct": round(len(canonical_drug) / len(raw_drug) * 100.0, 2) if len(raw_drug) > 0 else 0.0
-            }
-
-        # 3. REAC
-        raw_reac = self.load_bronze_table("REAC", quarters=quarters)
-        reac_metrics = {}
-        if not raw_reac.empty:
-            raw_reac["_primaryid_str"] = raw_reac["primaryid"].astype(str)
-            canonical_reac_mask = raw_reac["_primaryid_str"].isin(canonical_primaryids)
-            canonical_reac = raw_reac[canonical_reac_mask].copy()
-            orphan_reac = raw_reac[~canonical_reac_mask].copy()
-
-            # Normalization
-            canonical_reac["pt_verbatim"] = canonical_reac["pt"]
-            canonical_reac["clean_pt"] = canonical_reac["pt"].fillna("").str.strip().str.upper()
-
-            canonical_reac.drop(columns=["_primaryid_str"], inplace=True, errors="ignore")
-            orphan_reac.drop(columns=["_primaryid_str"], inplace=True, errors="ignore")
-
-            canonical_reac.to_parquet(snapshot_dir / "reac.parquet", index=False, engine="pyarrow")
-            if not orphan_reac.empty:
-                orphan_reac["quarantine_reason"] = "ORPHAN_CHILD_NO_CANONICAL_DEMO"
-                orphan_reac.to_parquet(quarantine_dir / "reac_orphans.parquet", index=False, engine="pyarrow")
-
-            reac_metrics = {
-                "reac_raw_count": len(raw_reac),
-                "reac_retained_count": len(canonical_reac),
-                "reac_orphans_quarantined": len(orphan_reac),
-                "reac_retention_pct": round(len(canonical_reac) / len(raw_reac) * 100.0, 2) if len(raw_reac) > 0 else 0.0
-            }
-
-        # 4. OUTC
-        raw_outc = self.load_bronze_table("OUTC", quarters=quarters)
-        outc_metrics = {}
-        if not raw_outc.empty:
-            raw_outc["_primaryid_str"] = raw_outc["primaryid"].astype(str)
-            canonical_outc_mask = raw_outc["_primaryid_str"].isin(canonical_primaryids)
-            canonical_outc = raw_outc[canonical_outc_mask].copy()
-            orphan_outc = raw_outc[~canonical_outc_mask].copy()
-
-            canonical_outc["clean_outc_cod"] = canonical_outc["outc_cod"].fillna("UNKNOWN").str.strip().str.upper()
-            canonical_outc.drop(columns=["_primaryid_str"], inplace=True, errors="ignore")
-            orphan_outc.drop(columns=["_primaryid_str"], inplace=True, errors="ignore")
-
-            canonical_outc.to_parquet(snapshot_dir / "outc.parquet", index=False, engine="pyarrow")
-            if not orphan_outc.empty:
-                orphan_outc["quarantine_reason"] = "ORPHAN_CHILD_NO_CANONICAL_DEMO"
-                orphan_outc.to_parquet(quarantine_dir / "outc_orphans.parquet", index=False, engine="pyarrow")
-
-            outc_metrics = {
-                "outc_raw_count": len(raw_outc),
-                "outc_retained_count": len(canonical_outc),
-                "outc_orphans_quarantined": len(orphan_outc),
-                "outc_retention_pct": round(len(canonical_outc) / len(raw_outc) * 100.0, 2) if len(raw_outc) > 0 else 0.0
-            }
-
-        # Save snapshot metrics
-        snapshot_metrics = {
-            "snapshot_name": snapshot_name,
-            "cutoff_date": cutoff_date,
-            "processed_timestamp": datetime.now(timezone.utc).isoformat(),
-            "demo": demo_metrics,
-            "drug": drug_metrics,
-            "reac": reac_metrics,
-            "outc": outc_metrics
+        metrics = {
+            "quarters": quarters,
+            "processed_timestamp": started.isoformat(),
+            "duration_seconds": round((datetime.now(timezone.utc) - started).total_seconds(), 2),
+            "deduplication_policy": "caseversion DESC, fda_dt DESC, primaryid DESC (NULLs last)",
+            "tables": tables,
         }
-
-        with open(snapshot_dir / "silver_metrics.json", "w", encoding="utf-8") as smf:
-            json.dump(snapshot_metrics, smf, indent=2)
-
-        logger.info("Silver snapshot '%s' complete. Retained %d unique canonical cases.", snapshot_name, demo_metrics.get("canonical_case_count", 0))
-        return snapshot_metrics
+        with open(self.silver_dir / "silver_metrics.json", "w", encoding="utf-8") as f:
+            json.dump(metrics, f, indent=2, default=str)
+        logger.info("Silver layer complete in %.1fs", metrics["duration_seconds"])
+        return metrics

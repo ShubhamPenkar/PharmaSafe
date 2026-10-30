@@ -1,53 +1,39 @@
-# PharmaSafe Known Safety Signals Reference Set
-# Documented reference benchmark set for validation and sensitivity evaluation
-version: "1.0"
+# PharmaSafe reference set for validation. Pairs are fixed a priori (not tuned to FAERS output) and are
+# evaluated as separate single-term entries, so no term is chosen after seeing the data.
+# Absence of a recovery in one reporting window is reported as such, not treated as a software error.
+# drug_name is the normalized active ingredient; reaction_term is a MedDRA preferred term.
+version: "2.0"
 
 reference_signals:
-  - drug_name: "ROFECOXIB"
-    reaction_term: "MYOCARDIAL INFARCTION"
-    expected_signal: true
-    regulatory_action: "Voluntary withdrawal (2004) due to cardiovascular thrombotic events"
-    evidence_source: "VIGOR Trial / FDA MedWatch Alert 2004"
+  # Positive references: association documented in labeling / regulatory action
+  - {drug_name: ROFECOXIB, reaction_term: MYOCARDIAL INFARCTION, expected_signal: true,
+     regulatory_action: "Voluntary withdrawal (2004) for cardiovascular thrombotic events", evidence_source: "VIGOR trial; FDA public health advisory 2004"}
+  - {drug_name: ROSIGLITAZONE, reaction_term: MYOCARDIAL INFARCTION, expected_signal: true,
+     regulatory_action: "Boxed warning (2007), later REMS", evidence_source: "Nissen & Wolski, NEJM 2007; FDA safety communications"}
+  - {drug_name: ATORVASTATIN, reaction_term: RHABDOMYOLYSIS, expected_signal: true,
+     regulatory_action: "Labeled warning for myopathy/rhabdomyolysis (statin class)", evidence_source: "Product labeling"}
+  - {drug_name: CIPROFLOXACIN, reaction_term: TENDON RUPTURE, expected_signal: true,
+     regulatory_action: "Boxed warning (2008) for tendinitis and tendon rupture", evidence_source: "FDA Drug Safety Communication, fluoroquinolones"}
+  - {drug_name: ISOTRETINOIN, reaction_term: CONGENITAL ANOMALY, expected_signal: true,
+     regulatory_action: "iPLEDGE REMS (teratogenicity)", evidence_source: "FDA REMS documentation; product labeling"}
+  - {drug_name: ISOTRETINOIN, reaction_term: FOETAL MALFORMATION, expected_signal: true,
+     regulatory_action: "iPLEDGE REMS (teratogenicity)", evidence_source: "FDA REMS documentation; product labeling"}
+  - {drug_name: PEMBROLIZUMAB, reaction_term: MYOCARDITIS, expected_signal: true,
+     regulatory_action: "Immune-mediated adverse reactions warning (myocarditis)", evidence_source: "Keytruda prescribing information"}
+  - {drug_name: PEMBROLIZUMAB, reaction_term: IMMUNE-MEDIATED MYOCARDITIS, expected_signal: true,
+     regulatory_action: "Immune-mediated adverse reactions warning (myocarditis)", evidence_source: "Keytruda prescribing information"}
+  - {drug_name: CLOZAPINE, reaction_term: AGRANULOCYTOSIS, expected_signal: true,
+     regulatory_action: "Boxed warning for severe neutropenia; Clozapine REMS", evidence_source: "Clozaril prescribing information; FDA REMS"}
+  - {drug_name: NATALIZUMAB, reaction_term: PROGRESSIVE MULTIFOCAL LEUKOENCEPHALOPATHY, expected_signal: true,
+     regulatory_action: "Boxed warning; TOUCH prescribing program", evidence_source: "Tysabri prescribing information"}
+  - {drug_name: AMIODARONE, reaction_term: PULMONARY TOXICITY, expected_signal: true,
+     regulatory_action: "Boxed warning for pulmonary toxicity", evidence_source: "Amiodarone prescribing information"}
 
-  - drug_name: "ROSIGLITAZONE"
-    reaction_term: "MYOCARDIAL INFARCTION"
-    expected_signal: true
-    regulatory_action: "FDA Boxed Warning (2007) and REMS program"
-    evidence_source: "Nissen et al., NEJM 2007; FDA Safety Communication"
-
-  - drug_name: "ATORVASTATIN"
-    reaction_term: "RHABDOMYOLYSIS"
-    expected_signal: true
-    regulatory_action: "Known class effect of HMG-CoA reductase inhibitors"
-    evidence_source: "FDA Statin Safety Review"
-
-  - drug_name: "CIPROFLOXACIN"
-    reaction_term: "TENDON RUPTURE"
-    expected_signal: true
-    regulatory_action: "FDA Black Box Warning (2008)"
-    evidence_source: "FDA Drug Safety Communication - Fluoroquinolones"
-
-  - drug_name: "ISOTRETINOIN"
-    reaction_term: "TERATOGENICITY"
-    expected_signal: true
-    regulatory_action: "iPLEDGE Risk Evaluation and Mitigation Strategy (REMS)"
-    evidence_source: "FDA REMS Documentation"
-
-  - drug_name: "PEMBROLIZUMAB"
-    reaction_term: "MYOCARDITIS"
-    expected_signal: true
-    regulatory_action: "Immune-mediated adverse reactions warning"
-    evidence_source: "FDA Prescribing Information - Keytruda"
-
-  - drug_name: "CLOZAPINE"
-    reaction_term: "AGRANULOCYTOSIS"
-    expected_signal: true
-    regulatory_action: "FDA Clozapine REMS (severe neutropenia)"
-    evidence_source: "FDA REMS Clozapine Registry"
-
-  # Negative controls (pairs not expected to show a true causal safety signal)
-  - drug_name: "AMOXICILLIN"
-    reaction_term: "CONGENITAL ANOMALY"
-    expected_signal: false
-    regulatory_action: "Negative control"
-    evidence_source: "FDA Pregnancy Category B / Established safety record"
+  # Negative controls: no labeled association known; chosen a priori as pairs not expected to be flagged.
+  # A control can still be flagged by confounding or reporting artefacts; that outcome is reported, not hidden.
+  - {drug_name: AMOXICILLIN, reaction_term: CONGENITAL ANOMALY, expected_signal: false,
+     regulatory_action: "Negative control", evidence_source: "No labeled association"}
+  - {drug_name: AMOXICILLIN, reaction_term: MYOCARDIAL INFARCTION, expected_signal: false,
+     regulatory_action: "Negative control", evidence_source: "No labeled association"}
+  - {drug_name: PEMBROLIZUMAB, reaction_term: TENDON RUPTURE, expected_signal: false,
+     regulatory_action: "Negative control", evidence_source: "No labeled association"}

@@ -1,0 +1,11 @@
+- **No exposure denominator.** FAERS holds numerators only. Incidence, absolute risk and patient-level probabilities cannot be derived, and none are shown.
+- **Disproportionality is not causation.** ROR and PRR compare reporting frequencies. A flagged pair is a hypothesis for clinical and epidemiological review.
+- **Reporting biases.** Under-reporting, stimulated reporting after safety communications or media coverage, the Weber effect, and confounding by indication all shift the statistics.
+- **Reporting patterns, not occurrence.** Quarterly trends describe how many reports were received, not how often events occurred.
+- **Drug names.** Drugs are keyed on FDA's mapped active ingredient (`prod_ai`) with the reported name as fallback. Brand/generic spellings that FDA did not map are not merged, and combination products appear under their own entries.
+- **Reaction terms** are MedDRA preferred terms as reported; no grouping into higher-level terms is applied, so a clinical concept spread across several terms is diluted.
+- **Co-reporting is not interaction.** Drug-pair results show disproportionate reporting among cases listing both drugs; they do not demonstrate a pharmacological interaction.
+- **Screening thresholds are project choices** (minimum cases, ROR lower bound, PRR, chi-square). They are not clinical or regulatory standards; the validation report shows how the flagged set moves when they change.
+- **Case versions.** The latest report version per case is analysed. A case's quarter is the quarter of that version, so follow-up reports move a case to a later quarter in the latest view; as-of snapshots avoid this.
+- **Coverage.** Eight consecutive quarters (2024 Q3 to 2026 Q2) of one source. Rare drugs, newly marketed drugs and long-latency events may be absent or underpowered.
+- **Reference-signal checks** use a short curated list; a pair not recovered in this window is not a failure of the method.

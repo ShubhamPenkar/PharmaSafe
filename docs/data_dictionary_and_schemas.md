@@ -144,3 +144,35 @@ Records who submitted or originated the report.
 | :--- | :--- | :--- | :--- |
 | `primaryid` | string | Foreign Key to DEMO | Matches `DEMO.primaryid` |
 | `rpsr_cod` | string | Report source code | `FGN` (Foreign), `DIST` (Distributor), `HP` (Healthcare Professional), `UF` (User Facility), etc. |
+
+---
+
+# Derived layers
+
+All derived columns sit next to the reported columns; reported values are never overwritten.
+
+## Bronze (`data/bronze/<QUARTER>/<table>/`)
+Every source column as a string, plus `_source_quarter`, `_source_file`, `_ingestion_timestamp`, `_is_synthetic`. `quarantine/<table>/` holds rows whose field count differs from the header (columns: `reason`, `field_count`, `raw_content`, `source_file`, `quarter`, `ingestion_timestamp`). `deleted/` holds FDA's deleted-case IDs (`caseid`). `ingestion_summary.json` records, per table, `source_records` (independent line count), `rows_ingested`, `rows_quarantined` and `reconciled`.
+
+## Silver (`data/silver/`)
+| Table | Grain | Added columns |
+| :--- | :--- | :--- |
+| `demo_versions` | one row per report version (`primaryid`) | `caseversion_int`, `<date>_date` + `<date>_precision` (DAY/MONTH/YEAR/INVALID) for event/mfr/init_fda/fda/rept dates, `age_years`, `wt_kg`, `sex_norm`, `*_country_norm`, `version_rank`, `is_latest_version`, `superseded_in_quarter`, `deleted_in_quarter`, `valid_from_quarter`, `valid_to_quarter` (exclusive), `ever_canonical` |
+| `demo` | one row per currently canonical case | same as `demo_versions` |
+| `drug` | one row per drug record | `drug_seq_int`, `role_cod_norm`, `drugname_norm`, `prod_ai_norm`, `drug_ingredients` (array), `drug_key` (ingredients joined by `\`), `drug_key_source`, `caseid_reported` |
+| `reac` / `outc` / `indi` / `ther` / `rpsr` | one row per source record | `pt_norm`, `outc_cod_norm`, `indi_pt_norm`, `dsg_drug_seq_int`, `dur_num`, `start_dt_date`/`end_dt_date` + precision, `rpsr_cod_norm`; `caseid` is taken from the parent DEMO row |
+| `deleted_cases` | one row per FDA-deleted case | `_source_quarter` = first quarter listed |
+| `quarantine/<table>/` | excluded rows | `quarantine_reason` |
+
+## Gold (`data/gold/<snapshot>/`, snapshot = `latest` or `asof_<QUARTER>`)
+| Table | Grain / contents |
+| :--- | :--- |
+| `case_summary` | one row per canonical case: `caseid`, `primaryid`, `report_quarter`, descriptors, `outcomes`, `is_serious`, `is_death`, `n_drugs`, `n_ps_drugs`, `n_reactions` |
+| `case_drug` | one row per (`caseid`, `drug_key` = active ingredient) with `roles`, `is_ps/ss/c/i`, `reported_names`, `drug_records` |
+| `case_reaction`, `case_outcome` | one row per (`caseid`, `pt`) / (`caseid`, `outc_cod`) |
+| `drug_summary`, `reaction_summary`, `outcome_summary`, `quarterly_trends`, `drug_name_index` | counts of unique cases |
+| `drug_outcomes`, `drug_sex`, `drug_age`, `drug_quarterly` | per-drug profiles by `role_policy` |
+| `drug_event_counts/role_policy=*` | `drug_key`, `pt`, `a`, `b`, `c`, `d`, `n_drug`, `n_event`, `n_eligible_cases` |
+| `safety_signals/role_policy=*` | `drug_name`, `reaction_term`, `analysis_period`, `observed_cases`, `expected_cases`, `background_cases`, `a`-`d`, `ROR`, `ROR_CI_lower/upper`, `PRR`, `PRR_CI_*`, `chi2_yates`, `zero_corrected`, `screening_status`, `screening_reasons`, `method_version`, `analysis_timestamp` |
+| `temporal/quarterly_signals`, `temporal/signal_persistence`, `temporal/quarterly_reaction_counts` | per-quarter statistics and persistence |
+| `combinations/drug_combinations`, `combinations/combination_signals` | co-reported pairs and pair-reaction statistics |

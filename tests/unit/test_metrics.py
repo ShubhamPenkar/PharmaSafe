@@ -77,20 +77,20 @@ def test_evaluate_screening_status():
     """Verify regulatory screening logic."""
     # Meets all criteria
     status, reasons = evaluate_screening_status(observed_cases=10, ror_ci_lower=1.8, prr=2.5)
-    assert status == "SIGNAL"
+    assert status == "POTENTIAL_SIGNAL"
     assert len(reasons) == 0
 
     # Fails min case count
     status, reasons = evaluate_screening_status(observed_cases=2, ror_ci_lower=2.5, prr=3.0, min_cases=3)
-    assert status == "NON_SIGNAL"
+    assert status == "NOT_FLAGGED"
     assert any("Observed cases" in r for r in reasons)
 
     # Fails ROR CI lower
     status, reasons = evaluate_screening_status(observed_cases=10, ror_ci_lower=0.85, prr=2.5, min_ror_ci_lower=1.0)
-    assert status == "NON_SIGNAL"
+    assert status == "NOT_FLAGGED"
     assert any("ROR 95% CI lower" in r for r in reasons)
 
     # Fails PRR threshold
     status, reasons = evaluate_screening_status(observed_cases=10, ror_ci_lower=1.5, prr=1.4, min_prr=2.0)
-    assert status == "NON_SIGNAL"
+    assert status == "NOT_FLAGGED"
     assert any("PRR" in r for r in reasons)
