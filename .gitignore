@@ -1,0 +1,65 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables, credentials, and secrets
+.env
+.env.*
+*.pem
+*.key
+*.cert
+*.crt
+credentials.json
+secrets.yaml
+
+# Testing and coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE, OS, and Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# Large raw FDA quarterly archives & downloads (Preserve data/raw/manifest.json)
+data/raw/official/
+data/raw/*.zip
+data/raw/**/*.zip
+data/raw/temp/
+data/raw/extracted/
+
+# Generated pipeline datasets (Bronze, Silver, Gold Parquet datasets)
+data/bronze/
+data/silver/
+data/gold/
+data/synthetic/bronze/
+data/synthetic/silver/
+data/synthetic/gold/
+
+# Scratch, logs, and temporary files
+*.log
+scratch/
+tmp/
+temp/
+.system_generated/
+
+# Explicitly preserve manifests and synthetic test fixtures
+!data/raw/manifest.json
+!data/synthetic/manifest.json
+!data/synthetic/fixtures/
+!data/synthetic/fixtures/*.zip

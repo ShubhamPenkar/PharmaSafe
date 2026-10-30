@@ -1,0 +1,210 @@
+# PharmaSafe Data Sources Configuration
+# Official FDA Adverse Event Reporting System (FAERS / AEMS)
+
+version: "2.0"
+storage:
+  base_dir: "data"
+  raw_dir: "data/raw"
+  official_raw_dir: "data/raw/official"
+  synthetic_dir: "data/synthetic"
+  bronze_dir: "data/bronze"
+  silver_dir: "data/silver"
+  gold_dir: "data/gold"
+  manifest_path: "data/raw/manifest.json"
+  synthetic_manifest_path: "data/synthetic/manifest.json"
+
+faers_source:
+  base_url: "https://fis.fda.gov/content/Exports"
+  official_index_url: "https://fis.fda.gov/extensions/FPD-QDE-FAERS/FPD-QDE-FAERS.html"
+  official_landing_page: "https://www.fda.gov/drugs/fda-adverse-event-monitoring-system-aems/fda-adverse-event-monitoring-system-aems-latest-quarterly-data-files"
+  format: "ASCII"
+  delimiter: "$"
+  encoding: "utf-8"
+  errors: "replace"
+
+# Target 8 consecutive study quarters (Q3 2024 through Q2 2026)
+quarters:
+  study_quarters:
+    - quarter_id: "2024Q3"
+      year: 2024
+      quarter: 3
+      coverage: "July–September 2024"
+      archive_name: "faers_ascii_2024q3.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2024q3.zip"
+      status: "verified_official"
+    - quarter_id: "2024Q4"
+      year: 2024
+      quarter: 4
+      coverage: "October–December 2024"
+      archive_name: "faers_ascii_2024Q4.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2024Q4.zip"
+      status: "verified_official"
+    - quarter_id: "2025Q1"
+      year: 2025
+      quarter: 1
+      coverage: "January–March 2025"
+      archive_name: "faers_ascii_2025q1.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2025q1.zip"
+      status: "verified_official"
+    - quarter_id: "2025Q2"
+      year: 2025
+      quarter: 2
+      coverage: "April–June 2025"
+      archive_name: "faers_ascii_2025q2.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2025q2.zip"
+      status: "verified_official"
+    - quarter_id: "2025Q3"
+      year: 2025
+      quarter: 3
+      coverage: "July–September 2025"
+      archive_name: "faers_ascii_2025q3.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2025q3.zip"
+      status: "verified_official"
+    - quarter_id: "2025Q4"
+      year: 2025
+      quarter: 4
+      coverage: "October–December 2025"
+      archive_name: "faers_ascii_2025Q4.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2025Q4.zip"
+      status: "verified_official"
+    - quarter_id: "2026Q1"
+      year: 2026
+      quarter: 1
+      coverage: "January–March 2026"
+      archive_name: "faers_ascii_2026q1.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2026q1.zip"
+      status: "verified_official"
+    - quarter_id: "2026Q2"
+      year: 2026
+      quarter: 2
+      coverage: "April–June 2026"
+      archive_name: "faers_ascii_2026q2.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2026q2.zip"
+      status: "verified_official"
+
+  pilot:
+    - quarter_id: "2024Q1"
+      year: 2024
+      quarter: 1
+      archive_name: "faers_ascii_2024q1.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2024q1.zip"
+      status: "legacy_pilot"
+    - quarter_id: "2024Q2"
+      year: 2024
+      quarter: 2
+      archive_name: "faers_ascii_2024q2.zip"
+      url: "https://fis.fda.gov/content/Exports/faers_ascii_2024q2.zip"
+      status: "legacy_pilot"
+
+# Official 7 FAERS Core Datasets and Verified Schema Specifications
+tables:
+  DEMO:
+    description: "Patient demographic and administrative information"
+    file_pattern: "DEMO*.*"
+    primary_key: "primaryid"
+    case_key: "caseid"
+    version_key: "caseversion"
+    date_key: "fda_dt"
+    columns:
+      primaryid: "string"
+      caseid: "string"
+      caseversion: "integer"
+      i_f_code: "string"       # Initial (I) or Follow-up (F)
+      event_dt: "string"       # Date of event
+      mfr_dt: "string"         # Manufacturer received date
+      init_fda_dt: "string"    # Initial FDA received date
+      fda_dt: "string"         # FDA received date
+      rept_cod: "string"       # Report type code
+      auth_num: "string"       # Authority number
+      mfr_num: "string"        # Manufacturer report number
+      mfr_sndr: "string"       # Manufacturer sender identifier
+      lit_ref: "string"        # Literature reference
+      age: "float"             # Patient age
+      age_cod: "string"        # Age unit code (YR, MON, DY, WK, HR, DEC)
+      age_grp: "string"        # Patient age group (N, I, C, T, A, E)
+      sex: "string"            # Patient sex (M, F, UNK)
+      e_sub: "string"          # Electronic submission flag
+      wt: "float"              # Patient weight
+      wt_cod: "string"         # Weight unit code (KG, LBS)
+      rept_dt: "string"        # Report date
+      to_mfr: "string"         # Voluntary report to manufacturer
+      occp_cod: "string"       # Reporter occupation (MD, PH, CN, LW, OT)
+      reporter_country: "string"
+      occr_country: "string"
+
+  DRUG:
+    description: "Drug information and reported roles for each event"
+    file_pattern: "DRUG*.*"
+    foreign_key: "primaryid"
+    columns:
+      primaryid: "string"
+      caseid: "string"
+      drug_seq: "integer"      # Drug sequence counter
+      role_cod: "string"       # Role code: PS (Primary Suspect), SS (Secondary Suspect), C (Concomitant), I (Interacting)
+      drugname: "string"       # Reported brand or generic drug name
+      prod_ai: "string"        # Product active ingredient
+      val_vbm: "integer"       # Validation status (1=validated, 2=not validated)
+      route: "string"          # Route of administration (oral, intravenous, etc.)
+      dose_vbm: "string"       # Verbatim dosage instructions
+      cum_dose_chr: "float"    # Cumulative dose
+      cum_dose_unit: "string"  # Cumulative dose unit
+      dechal: "string"         # Dechallenge outcome (Y, N, U, NA)
+      rechal: "string"         # Rechallenge outcome (Y, N, U, NA)
+      lot_num: "string"        # Lot number
+      exp_dt: "string"         # Expiration date
+      nda_num: "string"        # Regulatory application number
+      dose_amt: "string"       # Numerical dose amount
+      dose_unit: "string"      # Dose unit
+      dose_form: "string"      # Dosage form
+      dose_freq: "string"      # Dose frequency
+
+  REAC:
+    description: "Reported adverse reactions (MedDRA Preferred Terms)"
+    file_pattern: "REAC*.*"
+    foreign_key: "primaryid"
+    columns:
+      primaryid: "string"
+      caseid: "string"
+      pt: "string"             # MedDRA Preferred Term (Reaction name)
+      drug_rec_act: "string"   # Drug recurrence action
+
+  OUTC:
+    description: "Patient outcomes associated with adverse event"
+    file_pattern: "OUTC*.*"
+    foreign_key: "primaryid"
+    columns:
+      primaryid: "string"
+      caseid: "string"
+      outc_cod: "string"       # DE (Death), LT (Life-threatening), HO (Hospitalization), DS (Disability), CA (Congenital Anomaly), RI (Required Intervention), OT (Other Serious)
+
+  INDI:
+    description: "Reported medical indication for drug use"
+    file_pattern: "INDI*.*"
+    foreign_key: "primaryid"
+    columns:
+      primaryid: "string"
+      caseid: "string"
+      indi_drug_seq: "integer"
+      indi_pt: "string"        # MedDRA Preferred Term for Indication
+
+  THER:
+    description: "Drug therapy start and end dates and duration"
+    file_pattern: "THER*.*"
+    foreign_key: "primaryid"
+    columns:
+      primaryid: "string"
+      caseid: "string"
+      dsg_drug_seq: "integer"
+      start_dt: "string"
+      end_dt: "string"
+      dur: "float"
+      dur_cod: "string"
+
+  RPSR:
+    description: "Report source information"
+    file_pattern: "RPSR*.*"
+    foreign_key: "primaryid"
+    columns:
+      primaryid: "string"
+      caseid: "string"
+      rpsr_cod: "string"       # FGN (Foreign), DIST (Distributor), etc.

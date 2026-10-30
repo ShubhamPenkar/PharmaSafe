@@ -1,0 +1,53 @@
+# PharmaSafe Known Safety Signals Reference Set
+# Documented reference benchmark set for validation and sensitivity evaluation
+version: "1.0"
+
+reference_signals:
+  - drug_name: "ROFECOXIB"
+    reaction_term: "MYOCARDIAL INFARCTION"
+    expected_signal: true
+    regulatory_action: "Voluntary withdrawal (2004) due to cardiovascular thrombotic events"
+    evidence_source: "VIGOR Trial / FDA MedWatch Alert 2004"
+
+  - drug_name: "ROSIGLITAZONE"
+    reaction_term: "MYOCARDIAL INFARCTION"
+    expected_signal: true
+    regulatory_action: "FDA Boxed Warning (2007) and REMS program"
+    evidence_source: "Nissen et al., NEJM 2007; FDA Safety Communication"
+
+  - drug_name: "ATORVASTATIN"
+    reaction_term: "RHABDOMYOLYSIS"
+    expected_signal: true
+    regulatory_action: "Known class effect of HMG-CoA reductase inhibitors"
+    evidence_source: "FDA Statin Safety Review"
+
+  - drug_name: "CIPROFLOXACIN"
+    reaction_term: "TENDON RUPTURE"
+    expected_signal: true
+    regulatory_action: "FDA Black Box Warning (2008)"
+    evidence_source: "FDA Drug Safety Communication - Fluoroquinolones"
+
+  - drug_name: "ISOTRETINOIN"
+    reaction_term: "TERATOGENICITY"
+    expected_signal: true
+    regulatory_action: "iPLEDGE Risk Evaluation and Mitigation Strategy (REMS)"
+    evidence_source: "FDA REMS Documentation"
+
+  - drug_name: "PEMBROLIZUMAB"
+    reaction_term: "MYOCARDITIS"
+    expected_signal: true
+    regulatory_action: "Immune-mediated adverse reactions warning"
+    evidence_source: "FDA Prescribing Information - Keytruda"
+
+  - drug_name: "CLOZAPINE"
+    reaction_term: "AGRANULOCYTOSIS"
+    expected_signal: true
+    regulatory_action: "FDA Clozapine REMS (severe neutropenia)"
+    evidence_source: "FDA REMS Clozapine Registry"
+
+  # Negative controls (pairs not expected to show a true causal safety signal)
+  - drug_name: "AMOXICILLIN"
+    reaction_term: "CONGENITAL ANOMALY"
+    expected_signal: false
+    regulatory_action: "Negative control"
+    evidence_source: "FDA Pregnancy Category B / Established safety record"
