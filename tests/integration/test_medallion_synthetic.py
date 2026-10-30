@@ -44,10 +44,10 @@ def read(spark, env, layer, *parts):
 def test_bronze_reconciles_every_source_record(env):
     for q, summary in env["summaries"].items():
         for table, t in summary["tables"].items():
-            if table == "DELETED" or t["status"] != "INGESTED":
+            if t["status"] != "INGESTED":
                 continue
             assert t["reconciled"], (q, table)
-            assert t["rows_ingested"] + t["rows_quarantined"] == t["source_records"]
+            assert t["rows_ingested"] + t["rows_quarantined"] + t.get("non_numeric_lines_skipped", 0) == t["source_records"]
 
 
 def test_bronze_quarantines_malformed_row_with_reason(env, spark):

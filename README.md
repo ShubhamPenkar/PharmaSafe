@@ -1,221 +1,110 @@
 # PharmaSafe: Large-Scale Pharmaceutical Safety Analytics
 
-> **Post-Marketing Drug Safety Surveillance & Statistical Pharmacovigilance Platform**  
-> Built with **Apache Spark / PySpark**, **Apache Parquet**, **PyArrow**, **SciPy**, and **Pandas**.  
-> Primary Official Data Source: **FDA Adverse Event Reporting System (FAERS / AEMS)**.
+Disproportionality analysis of FDA FAERS / AEMS adverse-event reports with Apache Spark, Parquet, a FastAPI service and a Streamlit dashboard.
+
+> PharmaSafe reports **potential safety signals**: drug–reaction pairs reported together more often than the reporting background. This is a screening result for further investigation. It is not evidence of causation, and spontaneous reports have no exposure denominator, so no incidence or patient-level risk is computed.
 
 ---
 
-## 1. Project Overview
+## 1. What it does
 
-**PharmaSafe** is an open, reproducible pharmaceutical safety analytics platform that processes adverse-event reports from the U.S. Food and Drug Administration (FDA FAERS / AEMS). It identifies disproportionately reported drug–adverse event combinations, analyzes safety reporting trends across time, and structures evidence for pharmacovigilance teams.
+1. **Acquires and verifies** eight consecutive FAERS quarterly extracts (2024 Q3 – 2026 Q2): SHA-256 and ZIP CRC checks recorded in `data/raw/manifest.json`, with synthetic test fixtures kept strictly separate.
+2. **Bronze:** parses all seven tables (DEMO, DRUG, REAC, OUTC, INDI, THER, RPSR) plus FDA's deleted-case lists with PySpark. Each table's output is reconciled against an independent source line count; malformed rows are quarantined to Parquet.
+3. **Silver:** types and normalizes fields (reported values are kept next to normalized ones), classifies duplicate reports, keeps **every case version with a validity interval** so a later follow-up never rewrites an earlier snapshot, and separates true orphan rows from superseded versions.
+4. **Gold:** case-level marts where every case counts once per drug (active ingredient), reaction and pair; 2×2 tables; ROR, PRR, 95% intervals, Yates chi-square and configurable screening for three drug-role policies; per-quarter statistics and signal persistence; drug-pair (co-reporting) analytics.
+5. **Validates:** reference-signal recovery with negative controls, a threshold/role-policy robustness grid, and a discovery→evaluation temporal check.
+6. **Serves:** a read-only FastAPI service and a six-page Streamlit dashboard over the Gold tables, with a plain-language explanation for every signal.
 
-### Core Objectives:
-1. **Robust Data Engineering:** Ingest, clean, validate, deduplicate, and process large-scale multi-table FAERS datasets into an analytics-ready Medallion architecture (Bronze &rarr; Silver &rarr; Gold) using PySpark and Parquet.
-2. **Validated Statistical Pharmacovigilance:** Implement case-based disproportionality signal detection metrics:
-   - **Reporting Odds Ratio (ROR)** with exact 95% Wald confidence intervals and Haldane-Anscombe zero-cell correction.
-   - **Proportional Reporting Ratio (PRR)** with exact 95% log-transformed confidence intervals.
-   - Configurable regulatory screening thresholds ($a \ge 3$, $\text{ROR}_{025} > 1.0$, $\text{PRR} \ge 2.0$).
-3. **Rigorous Data Provenance:** Strict cryptographic verification (SHA-256 and ZIP CRC) of official FDA quarterly archives, total isolation from synthetic test fixtures, and comprehensive data-quality auditing.
-
----
-
-## 2. Architecture & Data Flow
-
-PharmaSafe implements a Medallion Lakehouse architecture optimized for multi-million row adverse-event datasets:
-
-```
-  FDA FAERS Quarterly ASCII Archives ($ Delimited)
-                         │
-                         ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │  Bronze Layer: Raw Ingestion & Source Manifest              │
-  │  - Cryptographic verification (SHA-256 & ZIP CRC32)         │
-  │  - PySpark distributed parsing with schema validation       │
-  │  - PyArrow streaming writer (Snappy Parquet)                │
-  │  - Malformed row quarantine & audit logging                 │
-  └──────────────────────────────┬──────────────────────────────┘
-                                 │
-                                 ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │  Silver Layer: Cleaned, Deduplicated Case-Level Tables      │
-  │  - Deterministic deduplication (max caseversion / fda_dt)   │
-  │  - Relational orphan removal across all child tables        │
-  │  - Drug name standardization & MedDRA reaction cleaning     │
-  └──────────────────────────────┬──────────────────────────────┘
-                                 │
-                                 ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │  Gold Layer: Analytical Marts & Signal Detection Engine     │
-  │  - Case-level 2x2 contingency matrix generation (a, b, c, d)│
-  │  - Exact ROR, PRR, 95% CIs, and regulatory screening        │
-  │  - Multi-quarter longitudinal trend analysis                │
-  └──────────────────────────────┬──────────────────────────────┘
-                                 │
-                                 ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │  Presentation Layer: Interactive Pharmacovigilance Tools    │
-  │  - Safety Signal Screener & Drug Explorer                   │
-  │  - Benchmark Validation against Known Boxed Warnings        │
-  └─────────────────────────────────────────────────────────────┘
-```
+See [docs/architecture.md](docs/architecture.md), [docs/methodology_and_counting_rules.md](docs/methodology_and_counting_rules.md), [docs/data_dictionary_and_schemas.md](docs/data_dictionary_and_schemas.md) and [docs/limitations.md](docs/limitations.md).
 
 ---
 
-## 3. Technology Stack
+## 2. Results on the eight official quarters
 
-- **Distributed Data Processing:** Apache Spark 4.2.0 (PySpark SQL & DataFrame API)
-- **High-Performance Storage:** Apache Arrow / PyArrow 26.0.0, Parquet (Snappy compression)
-- **Mathematical & Statistical Computations:** NumPy 2.4.4, SciPy 1.17.1, Pandas 3.0.1
-- **Language & Runtime:** Python 3.12+ (tested on Windows 11 with OpenJDK 25 LTS / 17+)
-- **Data Acquisition & Web Verification:** Requests 2.32.5, Beautiful Soup 4, PyYAML 6.0.3
-- **Test Framework:** Pytest 9.1.1 (100% automated test pass rate)
+<!-- RESULTS -->
 
 ---
 
-## 4. Current Development Status
+## 3. Setup
 
-| Component | Status | Description |
-| :--- | :--- | :--- |
-| **Data Procurement & Audit** | **Complete** | 8 consecutive quarters (2024Q3–2026Q2, 514 MB) downloaded, SHA-256 & CRC verified in `data/raw/manifest.json`. |
-| **Synthetic Fixture Isolation** | **Complete** | Synthetic fixtures quarantined to `data/synthetic/fixtures/` and isolated from production pipelines. |
-| **Bronze Ingestion Engine** | **Complete** | Memory-efficient PySpark DataFrame reader with chunked PyArrow streaming to Parquet (Windows `winutils` safe). |
-| **Official 2024Q3 Bronze Pilot** | **Complete** | 5,752,873 rows processed across all 7 FAERS tables with 0 malformed rows and 100.00% foreign key integrity. |
-| **Silver Deduplication Logic** | **Complete** | Case version resolver and relational orphan pruner verified on synthetic benchmarks. |
-| **Signal Engine (ROR / PRR)** | **Complete** | Exact statistical math, Haldane-Anscombe zero-cell correction, and screening classifier verified by unit tests. |
-| **Full 8-Quarter Silver Ingestion** | In Progress | Scaling deduplication and child table joins across all 8 official quarters. |
-| **Gold Analytics & Dashboard** | Planned | Production of analytical safety marts and interactive Streamlit UI. |
+Requirements: Python 3.12, Java 17+ (tested with OpenJDK 25), ~25 GB free disk for the full dataset and derived layers.
 
----
-
-## 5. Repository Structure
-
-```
-PharmaSafe/
-├── configs/
-│   ├── data_sources.yaml        # FDA FAERS endpoints, quarter catalog, and table schemas
-│   ├── analysis.yaml            # Screening thresholds, statistical parameters, and filters
-│   └── reference_signals.yaml   # Benchmark ground truth alerts and negative controls
-├── data/
-│   ├── raw/
-│   │   ├── manifest.json        # Provenance manifest for official FDA downloads
-│   │   └── official/            # Official quarterly ZIP archives (excluded from Git)
-│   ├── bronze/                  # Official raw Parquet tables (excluded from Git)
-│   ├── silver/                  # Cleaned, deduplicated Parquet tables (excluded from Git)
-│   ├── gold/                    # Analytical signal marts (excluded from Git)
-│   └── synthetic/
-│       ├── fixtures/            # Deterministic synthetic test ZIPs for unit tests
-│       └── manifest.json        # Synthetic test fixture metadata
-├── docs/
-│   ├── data_dictionary_and_schemas.md   # Complete FAERS table definitions (DEMO, DRUG, etc.)
-│   └── methodology_and_counting_rules.md # Statistical formulas and counting rules
-├── reports/
-│   ├── data_source_audit.md             # Forensic audit report of existing project data
-│   ├── data_source_audit.json           # Machine-readable audit findings
-│   ├── bronze_pilot_2024q3_report.md    # Official 2024Q3 Bronze pilot execution report
-│   └── bronze_pilot_2024q3_summary.json # Verification counts and schema checks
-├── scripts/
-│   ├── acquire_and_verify_official_data.py # Automated FDA scraper and archive verifier
-│   ├── audit_existing_data.py              # Local data source audit script
-│   ├── check_target_quarters.py            # Quarter target validation
-│   ├── probe_fda_page.py                   # FDA export index inspection utility
-│   ├── run_bronze_pilot_2024q3.py          # Official 2024Q3 Bronze pilot pipeline runner
-│   └── run_medallion_pipeline.py           # Synthetic pipeline test harness
-├── src/
-│   ├── ingestion/               # Bronze pipeline, download manager, sample builder
-│   ├── preprocessing/           # Case deduplication and Silver pipeline
-│   ├── signal_detection/        # Contingency tables, ROR, PRR, and CI engine
-│   ├── validation/              # Data quality gates and audit checkers
-│   └── utils/                   # Spark session manager, logging, config loader
-├── tests/
-│   ├── fixtures/                # Synthetic FAERS generator for unit testing
-│   ├── unit/                    # Unit tests for metrics, deduplication, and ingestion
-│   └── integration/             # Integration tests for official Bronze artifacts
-├── requirements.txt             # Pinned project dependencies
-└── README.md                    # Project documentation
-```
-
----
-
-## 6. Setup & Installation
-
-### Prerequisites
-- Python 3.10+ (Tested on Python 3.12.6)
-- Java 17+ or Java 21+ LTS (Tested with OpenJDK 25)
-- Git
-
-### Installation Steps
-```powershell
-# 1. Clone repository
-git clone https://github.com/ShubhamPenkar/PharmaSafe.git
-cd PharmaSafe
-
-# 2. Create and activate virtual environment
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-# 3. Install dependencies
+```bash
+git clone https://github.com/ShubhamPenkar/PharmaSafe.git && cd PharmaSafe
+python3.12 -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
----
+## 4. Get the data
 
-## 7. How to Acquire Official FDA Data
+Archives (~514 MB) are not stored in Git.
 
-Official FAERS archives are not stored in Git due to file sizes (514 MB total across 8 quarters). To acquire and verify the official datasets directly from the FDA:
-
-```powershell
-# Run the automated downloader and cryptographic verifier
+```bash
 python scripts/acquire_and_verify_official_data.py
 ```
 
-This script:
-1. Queries the official FDA quarterly data export directory.
-2. Downloads all 8 target quarterly archives (`2024Q3` through `2026Q2`) into `data/raw/official/{quarter}/`.
-3. Verifies SHA-256 checksums and tests ZIP CRC integrity.
-4. Confirms that all 7 required ASCII tables (`DEMO`, `DRUG`, `REAC`, `OUTC`, `INDI`, `THER`, `RPSR`) and documentation are present.
-5. Updates `data/raw/manifest.json`.
+This downloads the eight quarters into `data/raw/official/<quarter>/`, verifies SHA-256 and CRC, and writes `data/raw/manifest.json`. The FDA server can be slow (we observed well under 1 MB/s per connection); downloads can be resumed with `curl -C -`, after which the pipeline re-verifies every archive against the manifest checksum before reading it.
 
----
+## 5. Run
 
-## 8. How to Run the Pipeline
-
-### Running the Official Bronze Pilot (2024 Q3)
-To process the real official 2024Q3 archive into verified Bronze Parquet tables:
-```powershell
-python scripts/run_bronze_pilot_2024q3.py
-```
-This parses over 5.75 million records with PySpark, validates schemas, quarantines malformed rows (0 in 2024Q3), streams partitions into Snappy-compressed Parquet files under `data/bronze/2024Q3/`, and generates execution reports in `reports/`.
-
-### Running Synthetic Pipeline Tests
-To execute an end-to-end test of Bronze, Silver deduplication, and Gold signal detection on isolated synthetic fixtures:
-```powershell
-python scripts/run_medallion_pipeline.py
+```bash
+python scripts/run_full_pipeline.py            # Bronze → Silver → Gold → temporal → combinations → validation → quality report
+python scripts/run_full_pipeline.py --quarters 2024Q3 --skip-validation   # one-quarter pilot
+python scripts/run_full_pipeline.py --asof 2025Q2                         # also build a historical (as-of) Gold snapshot
+python scripts/run_full_pipeline.py --synthetic                            # isolated synthetic fixtures; writes only under data/synthetic
+python -m src.validation.performance_benchmark                             # Pandas vs PySpark benchmark → reports/performance_report.md
 ```
 
----
+Individual stages: `scripts/run_bronze_pipeline.py`, `run_silver_pipeline.py`, `run_gold_pipeline.py`. Completed Bronze quarters are skipped unless `--force` is given.
 
-## 9. Running Tests
-
-PharmaSafe includes an automated test suite verifying statistical computations, deduplication logic, download integrity, and official data isolation:
-
-```powershell
-pytest tests/ -v
+```bash
+streamlit run dashboard/app.py                 # dashboard on :8501
+uvicorn api.main:app --reload                  # API on :8000, interactive docs at /docs
 ```
 
-All 19 tests run locally and assert:
-- Exact ROR and PRR mathematical correctness against manual 2x2 calculations.
-- Haldane-Anscombe zero-cell correction when $b=0$ or $c=0$.
-- Case deduplication resolving to latest `caseversion` and removal of orphan records.
-- Strict rejection and quarantine of corrupt or unverified archives.
-- Total isolation of synthetic test fixtures from production pipelines.
+Docker (`Dockerfile`, `docker-compose.yml`): `docker compose run --rm pipeline` then `docker compose up dashboard api`. The image mounts `./data` and `./reports`; it has not been build-tested in the environment this was developed in.
 
----
+## 6. API
 
-## 10. Important Scientific Limitations
+| Endpoint | Purpose |
+| :--- | :--- |
+| `GET /health` | Service and Gold availability |
+| `GET /overview` | Dataset counts, top drugs/reactions/pairs, outcomes, signal counts, quarterly volume |
+| `GET /drugs?q=` | Search by active ingredient or reported product name |
+| `GET /drugs/{drug}` | Profile: reactions with ROR/PRR, outcomes, roles, demographics, quarterly cases |
+| `GET /reactions` | Reaction terms by case count |
+| `GET /signals` | Filter, sort and page candidate signals |
+| `GET /signals/{drug}/{reaction}` | One pair with 2×2 counts and its explanation |
+| `GET /trends` | Quarterly volume, per-quarter signal statistics, persistence |
+| `GET /combinations` | Co-reported drug pairs and pair-reaction statistics |
+| `GET /data-quality` | Latest audit |
 
-PharmaSafe is an analytical decision-support and research platform. Users and researchers must interpret findings in accordance with pharmacovigilance principles:
-1. **Disproportionality $\ne$ Causation:** Statistical disproportionality indicates an elevated frequency of reporting relative to other drugs in the database; it does **not** prove biological or clinical causation.
-2. **Absence of Exposure Denominators:** FAERS captures spontaneous adverse event reports without recording the total number of patients exposed to the drug. Consequently, **true incidence rates and absolute risk cannot be calculated**.
-3. **Reporting Biases:** Spontaneous reporting systems are subject to significant biases, including under-reporting, Weber effect (reporting peaks following initial drug launch), notoriety bias (surges following media coverage or regulatory warnings), and confounding by indication.
-4. **Synthetic Testing vs. Genuine Findings:** Test fixtures located in `data/synthetic/fixtures/` contain planted markers (e.g., `SYNTH_DRUG_ALPHA`) designed solely for regression testing and software verification. Official analytical findings are derived exclusively from verified FDA data recorded in `data/raw/manifest.json`.
+## 7. Tests
+
+```bash
+pytest tests/
+```
+
+Unit tests cover the ROR/PRR mathematics (including zero cells and Spark-vs-scalar parity), report-duplicate classification, version ranking and as-of snapshots, drug-ingredient normalization, hand-computed per-quarter and drug-pair tables, validation logic and the quality auditor. Integration tests run Bronze → Silver → Gold → API → dashboard pages on deterministic **synthetic** fixtures in temporary directories, and reconcile the official Bronze output when it exists locally. Synthetic data tests software only; it is never reported as safety evidence.
+
+## 8. Repository layout
+
+```
+configs/      data_sources.yaml, analysis.yaml (screening, temporal, combinations, robustness), reference_signals.yaml
+scripts/      acquire_and_verify_official_data.py, run_{bronze,silver,gold,full}_pipeline.py
+src/
+  ingestion/        download_manager, bronze_pipeline, faers_sample_builder (test fixtures only)
+  preprocessing/    silver_pipeline, case_deduplicator, normalization, drug_normalization
+  analytics/        gold_pipeline, temporal_analytics, interaction_analytics
+  signal_detection/ metrics (scalar reference), signal_engine (Spark), signal_ranking, explain
+  validation/       quality_checks, benchmark_evaluator, performance_benchmark
+  serving/          gold_store (read-only PyArrow access)
+api/          FastAPI app          dashboard/   Streamlit app and pages
+tests/        unit/ and integration/   docs/ reports/   Dockerfile, docker-compose.yml
+```
+
+`data/raw/official`, `data/bronze`, `data/silver` and `data/gold` are generated and excluded from Git.
+
+## 9. Scientific limitations
+
+Summarised from [docs/limitations.md](docs/limitations.md): disproportionality is not causation; there is no exposure denominator; spontaneous reporting is biased by under-reporting, stimulated reporting and confounding by indication; quarterly counts show reporting volume, not occurrence; drug keys use FDA-mapped ingredients with conservative salt stripping, so unmapped brand spellings stay separate; reactions are MedDRA preferred terms without grouping; drug co-reporting is not interaction; screening thresholds are project choices (the permissive defaults flag a large share of stored pairs, so rank by ROR lower bound rather than treating every flag as equally strong).

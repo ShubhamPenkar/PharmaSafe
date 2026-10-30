@@ -203,13 +203,16 @@ class BronzePipeline:
         out_dir = q_bronze_dir / DELETED_TABLE.lower()
         self._write_parquet(df, out_dir)
         written = self.spark.read.parquet(str(out_dir)).count()
-        source_lines, _ = count_source_records(source_file)
+        with open(source_file, "rb") as f:   # the deleted list has no guaranteed header: count every non-blank line
+            source_lines = sum(1 for raw in f if raw.strip())
         return {
             "status": "INGESTED",
             "member_file": member_name,
+            "source_records": source_lines,
             "rows_ingested": written,
             "non_numeric_lines_skipped": non_numeric,
-            "source_nonblank_lines": source_lines + 1,  # this file has no guaranteed header
+            "rows_quarantined": 0,
+            "reconciled": written + non_numeric == source_lines,
             "parquet_path": str(out_dir),
         }
 
@@ -423,6 +426,8 @@ class BronzePipeline:
                 tables_summary[DELETED_TABLE] = self._ingest_deleted_cases(
                     tmp_path / "deleted.txt", deleted_member, quarter_upper, q_bronze_dir, ingestion_ts, is_synthetic
                 )
+                if not tables_summary[DELETED_TABLE]["reconciled"]:
+                    reconciliation_failures.append(DELETED_TABLE)
             else:
                 tables_summary[DELETED_TABLE] = {"status": "MISSING_IN_ARCHIVE"}
 

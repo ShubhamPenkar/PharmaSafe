@@ -1,0 +1,455 @@
+{
+  "generated_at": "2026-10-30T16:21:54.186740+00:00",
+  "snapshot": "latest",
+  "references": [
+    {
+      "drug_name": "ROFECOXIB",
+      "reaction_terms": [
+        "MYOCARDIAL INFARCTION"
+      ],
+      "expected_signal": true,
+      "evidence_source": "VIGOR trial; FDA public health advisory 2004",
+      "regulatory_action": "Voluntary withdrawal (2004) for cardiovascular thrombotic events",
+      "status": "INSUFFICIENT_CASES",
+      "outcome": "NOT_EVALUABLE",
+      "matched_reaction": null
+    },
+    {
+      "drug_name": "ROSIGLITAZONE",
+      "reaction_terms": [
+        "MYOCARDIAL INFARCTION"
+      ],
+      "expected_signal": true,
+      "evidence_source": "Nissen & Wolski, NEJM 2007; FDA safety communications",
+      "regulatory_action": "Boxed warning (2007), later REMS",
+      "status": "INSUFFICIENT_CASES",
+      "outcome": "NOT_EVALUABLE",
+      "matched_reaction": null
+    },
+    {
+      "drug_name": "ATORVASTATIN",
+      "reaction_terms": [
+        "RHABDOMYOLYSIS"
+      ],
+      "expected_signal": true,
+      "evidence_source": "Product labeling",
+      "regulatory_action": "Labeled warning for myopathy/rhabdomyolysis (statin class)",
+      "status": "DETECTED",
+      "outcome": "RECOVERED",
+      "matched_reaction": "RHABDOMYOLYSIS",
+      "observed_cases": 703,
+      "ROR": 51.696211434617894,
+      "ROR_CI_lower": 47.610849305583855,
+      "ROR_CI_upper": 56.13212777490369,
+      "PRR": 47.952966330265795
+    },
+    {
+      "drug_name": "CIPROFLOXACIN",
+      "reaction_terms": [
+        "TENDON RUPTURE"
+      ],
+      "expected_signal": true,
+      "evidence_source": "FDA Drug Safety Communication, fluoroquinolones",
+      "regulatory_action": "Boxed warning (2008) for tendinitis and tendon rupture",
+      "status": "DETECTED",
+      "outcome": "RECOVERED",
+      "matched_reaction": "TENDON RUPTURE",
+      "observed_cases": 75,
+      "ROR": 48.03045210455499,
+      "ROR_CI_lower": 37.94286327745452,
+      "ROR_CI_upper": 60.79995366977785,
+      "PRR": 47.14708523557386
+    },
+    {
+      "drug_name": "ISOTRETINOIN",
+      "reaction_terms": [
+        "CONGENITAL ANOMALY"
+      ],
+      "expected_signal": true,
+      "evidence_source": "FDA REMS documentation; product labeling",
+      "regulatory_action": "iPLEDGE REMS (teratogenicity)",
+      "status": "INSUFFICIENT_CASES",
+      "outcome": "NOT_EVALUABLE",
+      "matched_reaction": null
+    },
+    {
+      "drug_name": "ISOTRETINOIN",
+      "reaction_terms": [
+        "FOETAL MALFORMATION"
+      ],
+      "expected_signal": true,
+      "evidence_source": "FDA REMS documentation; product labeling",
+      "regulatory_action": "iPLEDGE REMS (teratogenicity)",
+      "status": "INSUFFICIENT_CASES",
+      "outcome": "NOT_EVALUABLE",
+      "matched_reaction": null
+    },
+    {
+      "drug_name": "PEMBROLIZUMAB",
+      "reaction_terms": [
+        "MYOCARDITIS"
+      ],
+      "expected_signal": true,
+      "evidence_source": "Keytruda prescribing information",
+      "regulatory_action": "Immune-mediated adverse reactions warning (myocarditis)",
+      "status": "DETECTED",
+      "outcome": "RECOVERED",
+      "matched_reaction": "MYOCARDITIS",
+      "observed_cases": 284,
+      "ROR": 17.011390687345024,
+      "ROR_CI_lower": 15.029835180416578,
+      "ROR_CI_upper": 19.254197377663342,
+      "PRR": 16.786447083327907
+    },
+    {
+      "drug_name": "PEMBROLIZUMAB",
+      "reaction_terms": [
+        "IMMUNE-MEDIATED MYOCARDITIS"
+      ],
+      "expected_signal": true,
+      "evidence_source": "Keytruda prescribing information",
+      "regulatory_action": "Immune-mediated adverse reactions warning (myocarditis)",
+      "status": "DETECTED",
+      "outcome": "RECOVERED",
+      "matched_reaction": "IMMUNE-MEDIATED MYOCARDITIS",
+      "observed_cases": 279,
+      "ROR": 79.25553057208217,
+      "ROR_CI_lower": 68.41586763449118,
+      "ROR_CI_upper": 91.81260639447808,
+      "PRR": 78.17547650185654
+    },
+    {
+      "drug_name": "CLOZAPINE",
+      "reaction_terms": [
+        "AGRANULOCYTOSIS"
+      ],
+      "expected_signal": true,
+      "evidence_source": "Clozaril prescribing information; FDA REMS",
+      "regulatory_action": "Boxed warning for severe neutropenia; Clozapine REMS",
+      "status": "DETECTED",
+      "outcome": "RECOVERED",
+      "matched_reaction": "AGRANULOCYTOSIS",
+      "observed_cases": 158,
+      "ROR": 10.573298445785912,
+      "ROR_CI_lower": 9.002100485720629,
+      "ROR_CI_upper": 12.418728295800573,
+      "PRR": 10.469004082244977
+    },
+    {
+      "drug_name": "NATALIZUMAB",
+      "reaction_terms": [
+        "PROGRESSIVE MULTIFOCAL LEUKOENCEPHALOPATHY"
+      ],
+      "expected_signal": true,
+      "evidence_source": "Tysabri prescribing information",
+      "regulatory_action": "Boxed warning; TOUCH prescribing program",
+      "status": "DETECTED",
+      "outcome": "RECOVERED",
+      "matched_reaction": "PROGRESSIVE MULTIFOCAL LEUKOENCEPHALOPATHY",
+      "observed_cases": 113,
+      "ROR": 53.26590531484553,
+      "ROR_CI_lower": 43.77300389997878,
+      "ROR_CI_upper": 64.81749974238032,
+      "PRR": 52.32229654338403
+    },
+    {
+      "drug_name": "AMIODARONE",
+      "reaction_terms": [
+        "PULMONARY TOXICITY"
+      ],
+      "expected_signal": true,
+      "evidence_source": "Amiodarone prescribing information",
+      "regulatory_action": "Boxed warning for pulmonary toxicity",
+      "status": "DETECTED",
+      "outcome": "RECOVERED",
+      "matched_reaction": "PULMONARY TOXICITY",
+      "observed_cases": 62,
+      "ROR": 56.45598680516564,
+      "ROR_CI_lower": 43.62783461176696,
+      "ROR_CI_upper": 73.05607703219329,
+      "PRR": 54.992892685199564
+    },
+    {
+      "drug_name": "AMOXICILLIN",
+      "reaction_terms": [
+        "CONGENITAL ANOMALY"
+      ],
+      "expected_signal": false,
+      "evidence_source": "No labeled association",
+      "regulatory_action": "Negative control",
+      "status": "INSUFFICIENT_CASES",
+      "outcome": "NOT_EVALUABLE",
+      "matched_reaction": null
+    },
+    {
+      "drug_name": "AMOXICILLIN",
+      "reaction_terms": [
+        "MYOCARDIAL INFARCTION"
+      ],
+      "expected_signal": false,
+      "evidence_source": "No labeled association",
+      "regulatory_action": "Negative control",
+      "status": "PRESENT_NOT_FLAGGED",
+      "outcome": "CORRECTLY_NOT_FLAGGED",
+      "matched_reaction": "MYOCARDIAL INFARCTION",
+      "observed_cases": 4,
+      "ROR": 0.208562351666136,
+      "ROR_CI_lower": 0.0782336125048221,
+      "ROR_CI_upper": 0.556004678038201,
+      "PRR": 0.2091448264763173
+    },
+    {
+      "drug_name": "PEMBROLIZUMAB",
+      "reaction_terms": [
+        "TENDON RUPTURE"
+      ],
+      "expected_signal": false,
+      "evidence_source": "No labeled association",
+      "regulatory_action": "Negative control",
+      "status": "INSUFFICIENT_CASES",
+      "outcome": "NOT_EVALUABLE",
+      "matched_reaction": null
+    }
+  ],
+  "robustness": {
+    "baseline": "primary|min_cases=3|min_prr=2.0",
+    "baseline_flagged_pairs": 173222,
+    "grid": [
+      {
+        "role_policy": "primary",
+        "min_cases": 3,
+        "min_prr": 1.5,
+        "flagged_pairs": 181003,
+        "overlap_with_baseline_jaccard": 0.957,
+        "retained_from_baseline_pct": 100.0
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 3,
+        "min_prr": 2.0,
+        "flagged_pairs": 173222,
+        "overlap_with_baseline_jaccard": 1.0,
+        "retained_from_baseline_pct": 100.0
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 3,
+        "min_prr": 3.0,
+        "flagged_pairs": 152500,
+        "overlap_with_baseline_jaccard": 0.8804,
+        "retained_from_baseline_pct": 88.04
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 5,
+        "min_prr": 1.5,
+        "flagged_pairs": 128866,
+        "overlap_with_baseline_jaccard": 0.669,
+        "retained_from_baseline_pct": 69.9
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 5,
+        "min_prr": 2.0,
+        "flagged_pairs": 121085,
+        "overlap_with_baseline_jaccard": 0.699,
+        "retained_from_baseline_pct": 69.9
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 5,
+        "min_prr": 3.0,
+        "flagged_pairs": 100363,
+        "overlap_with_baseline_jaccard": 0.5794,
+        "retained_from_baseline_pct": 57.94
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 10,
+        "min_prr": 1.5,
+        "flagged_pairs": 77810,
+        "overlap_with_baseline_jaccard": 0.3869,
+        "retained_from_baseline_pct": 40.43
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 10,
+        "min_prr": 2.0,
+        "flagged_pairs": 70029,
+        "overlap_with_baseline_jaccard": 0.4043,
+        "retained_from_baseline_pct": 40.43
+      },
+      {
+        "role_policy": "primary",
+        "min_cases": 10,
+        "min_prr": 3.0,
+        "flagged_pairs": 54989,
+        "overlap_with_baseline_jaccard": 0.3174,
+        "retained_from_baseline_pct": 31.74
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 3,
+        "min_prr": 1.5,
+        "flagged_pairs": 435431,
+        "overlap_with_baseline_jaccard": 0.372,
+        "retained_from_baseline_pct": 95.28
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 3,
+        "min_prr": 2.0,
+        "flagged_pairs": 422572,
+        "overlap_with_baseline_jaccard": 0.3772,
+        "retained_from_baseline_pct": 94.2
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 3,
+        "min_prr": 3.0,
+        "flagged_pairs": 386387,
+        "overlap_with_baseline_jaccard": 0.3581,
+        "retained_from_baseline_pct": 85.19
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 5,
+        "min_prr": 1.5,
+        "flagged_pairs": 341676,
+        "overlap_with_baseline_jaccard": 0.3661,
+        "retained_from_baseline_pct": 79.66
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 5,
+        "min_prr": 2.0,
+        "flagged_pairs": 328817,
+        "overlap_with_baseline_jaccard": 0.3721,
+        "retained_from_baseline_pct": 78.59
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 5,
+        "min_prr": 3.0,
+        "flagged_pairs": 292632,
+        "overlap_with_baseline_jaccard": 0.349,
+        "retained_from_baseline_pct": 69.58
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 10,
+        "min_prr": 1.5,
+        "flagged_pairs": 228537,
+        "overlap_with_baseline_jaccard": 0.3213,
+        "retained_from_baseline_pct": 56.4
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 10,
+        "min_prr": 2.0,
+        "flagged_pairs": 215678,
+        "overlap_with_baseline_jaccard": 0.327,
+        "retained_from_baseline_pct": 55.32
+      },
+      {
+        "role_policy": "all_suspect",
+        "min_cases": 10,
+        "min_prr": 3.0,
+        "flagged_pairs": 188480,
+        "overlap_with_baseline_jaccard": 0.3006,
+        "retained_from_baseline_pct": 48.27
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 3,
+        "min_prr": 1.5,
+        "flagged_pairs": 790717,
+        "overlap_with_baseline_jaccard": 0.2006,
+        "retained_from_baseline_pct": 92.97
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 3,
+        "min_prr": 2.0,
+        "flagged_pairs": 748344,
+        "overlap_with_baseline_jaccard": 0.2053,
+        "retained_from_baseline_pct": 90.61
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 3,
+        "min_prr": 3.0,
+        "flagged_pairs": 642816,
+        "overlap_with_baseline_jaccard": 0.2019,
+        "retained_from_baseline_pct": 79.15
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 5,
+        "min_prr": 1.5,
+        "flagged_pairs": 598894,
+        "overlap_with_baseline_jaccard": 0.2226,
+        "retained_from_baseline_pct": 81.15
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 5,
+        "min_prr": 2.0,
+        "flagged_pairs": 556521,
+        "overlap_with_baseline_jaccard": 0.23,
+        "retained_from_baseline_pct": 78.79
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 5,
+        "min_prr": 3.0,
+        "flagged_pairs": 450993,
+        "overlap_with_baseline_jaccard": 0.2298,
+        "retained_from_baseline_pct": 67.33
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 10,
+        "min_prr": 1.5,
+        "flagged_pairs": 393773,
+        "overlap_with_baseline_jaccard": 0.2315,
+        "retained_from_baseline_pct": 61.53
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 10,
+        "min_prr": 2.0,
+        "flagged_pairs": 351400,
+        "overlap_with_baseline_jaccard": 0.2428,
+        "retained_from_baseline_pct": 59.17
+      },
+      {
+        "role_policy": "all_reported",
+        "min_cases": 10,
+        "min_prr": 3.0,
+        "flagged_pairs": 269612,
+        "overlap_with_baseline_jaccard": 0.2402,
+        "retained_from_baseline_pct": 49.51
+      }
+    ]
+  },
+  "temporal_validation": {
+    "discovery_quarters": [
+      "2024Q3",
+      "2024Q4",
+      "2025Q1",
+      "2025Q2"
+    ],
+    "evaluation_quarters": [
+      "2025Q3",
+      "2025Q4",
+      "2026Q1",
+      "2026Q2"
+    ],
+    "flagged_in_discovery": 91821,
+    "evaluable_in_evaluation": 56706,
+    "re_flagged_in_evaluation": 49497,
+    "confirmation_rate_of_evaluable_pct": 87.29,
+    "new_in_evaluation_not_in_discovery": 57499
+  }
+}

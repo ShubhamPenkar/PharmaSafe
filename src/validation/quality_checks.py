@@ -104,7 +104,7 @@ class DataQualityAuditor:
         for q, b in d["bronze"].items():
             for t, m in b.get("tables", {}).items():
                 if m.get("status") == "INGESTED":
-                    L.append(f"| {q} | {t} | {m.get('source_records', m.get('source_nonblank_lines', 0)):,} | {m['rows_ingested']:,} | "
+                    L.append(f"| {q} | {t} | {m.get('source_records', 0):,} | {m['rows_ingested']:,} | "
                              f"{m.get('rows_quarantined', 0):,} | {'yes' if m.get('reconciled', True) else '**NO**'} |")
 
         demo = d["silver"].get("tables", {}).get("DEMO", {})
