@@ -26,6 +26,8 @@ sort_by = st.selectbox("Rank by", ["ROR_CI_lower", "ROR", "PRR", "observed_cases
 
 res = store.signals(policy, drug or None, reaction or None, None if status == "All" else status, int(min_cases), sort_by, True, 200, 0)
 st.caption(f"{res['total']:,} matching pairs; showing the top {len(res['items'])}. ROR, PRR and intervals describe reporting disproportion only.")
+st.caption("Pairs at the top of a disproportion ranking are often product-defining terms (for example device complications reported almost only with that device), "
+           "which are statistically extreme but not necessarily clinically informative. Rank by observed cases or chi-square for a frequency-weighted view.")
 frame = df(res["items"])
 ui.signals_table(frame, "signals")
 

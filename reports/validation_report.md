@@ -1,5 +1,5 @@
 # PharmaSafe Safety Signal Validation Report
-Generated: 2026-10-30T16:21:54.186740+00:00  |  Snapshot: `latest`
+Generated: 2026-10-30T16:32:53.072198+00:00  |  Snapshot: `latest`
 
 > Screening criteria are project choices, not clinical standards. A reference pair that is not recovered does not show the method failed: the reporting window, drug-name mapping and case counts all matter. Reference pairs were not tuned against this output.
 

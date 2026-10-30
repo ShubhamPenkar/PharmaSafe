@@ -21,7 +21,35 @@ See [docs/architecture.md](docs/architecture.md), [docs/methodology_and_counting
 
 ## 2. Results on the eight official quarters
 
-<!-- RESULTS -->
+Measured on this repository's own run (macOS, 12 logical CPUs, 24 GB RAM, Spark `local[*]`; details in `reports/`).
+
+**Data and reconciliation**
+
+| | |
+| :--- | ---: |
+| Official quarters ingested | 8 (2024 Q3 – 2026 Q2), every archive SHA-256-verified against the manifest |
+| Source table records (7 tables) | 45,435,223 (matches the acquisition audit), 0 quarantined |
+| Report versions retained after duplicate handling | 3,253,358 of 3,253,489 DEMO rows (131 exact duplicates) |
+| Superseded report versions | 382,373 |
+| Cases removed by FDA deletion lists | 12,912 |
+| **Unique canonical cases** | **2,858,073** |
+| Distinct active-ingredient keys / reaction terms | 91,607 / 18,815 |
+| Quality audit | 24/24 checks passed (`reports/data_quality_report.md`) |
+
+**Signals** (primary-suspect policy, N = 2,857,989 eligible cases): 376,833 drug–reaction pairs with ≥ 3 cases stored; 173,222 meet the screening criteria (≥ 3 cases, ROR lower bound > 1, PRR ≥ 2, chi-square ≥ 4). The criteria are permissive, so rank flagged pairs rather than treating each flag as equally strong. Independent check: a separate pandas implementation (own version ranking, FDA-deletion handling and ingredient splitting, reading the raw FDA text files directly) reproduces the 2,858,073 canonical cases and the full 2×2 table (a, b, c, d, N) of five sampled pairs, including combination-product ingredients, exactly (`atorvastatin–rhabdomyolysis`, `dupilumab–pruritus`, `ezetimibe–myalgia`, `copper–foreign body in reproductive tract`, `pembrolizumab–immune-mediated myocarditis`). It checks the counting logic, not the clinical meaning of the pairs.
+
+**Validation** (`reports/validation_report.md`): of 14 pre-specified reference pairs, 7 documented positives were recovered (e.g. atorvastatin–rhabdomyolysis ROR 51.7, ciprofloxacin–tendon rupture, pembrolizumab–myocarditis, clozapine–agranulocytosis, natalizumab–PML, amiodarone–pulmonary toxicity), 1 negative control was correctly not flagged, and 6 pairs were *not evaluable* in this window (fewer than 3 cases, e.g. rofecoxib, rosiglitazone, isotretinoin congenital anomaly). No reference was missed once it had enough cases, and no negative control was flagged, but the reference set is small. Temporal check: of 56,706 pairs flagged in 2024 Q3–2025 Q2 that had enough cases later, 87.3% were flagged again in 2025 Q3–2026 Q2. The robustness grid shows the flagged set is sensitive to the minimum-case threshold (raising it from 3 to 10 keeps 40% of the baseline pairs).
+
+**Performance** (`reports/performance_report.md`):
+
+| Stage | Seconds |
+| :--- | ---: |
+| Bronze, 8 quarters (≈ 5–8 s each, ≈ 5.2–6.3 M rows per quarter) | ≈ 45 |
+| Silver, 45.4 M rows → 45.2 M | 232.6 |
+| Gold, latest snapshot (marts + 3 role policies) | 89.5 |
+| Temporal analytics / drug combinations | 14.5 / 66.5 |
+
+Pandas vs PySpark on the identical drug-event counting workload (8.96 M case–drug rows × 8.98 M case–reaction rows, median of 3 fresh-process runs): **pandas 11.4 s (peak ≈ 3.6 GB), Spark local 22.5 s (peak ≈ 4.9 GB)**, with identical results. On one machine with data that fits in memory, pandas is faster; Spark is used because the full pipeline (45 M raw rows, multi-way joins, window functions) is written once and is not bounded by driver memory. No multi-node run was done.
 
 ---
 
