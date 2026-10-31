@@ -1,0 +1,35 @@
+{
+  "classification": "SYNTHETIC_FIXTURE",
+  "description": "Deterministic synthetic FAERS test archives containing planted edge cases and known signal pairs.",
+  "archives": {
+    "2024Q1": {
+      "quarter": "2024Q1",
+      "filename": "faers_ascii_2024q1.zip",
+      "generator": "src.ingestion.faers_sample_builder.build_synthetic_faers_quarter",
+      "planted_markers": [
+        "SYNTH_DRUG_ALPHA",
+        "SYNTH_DRUG_BETA",
+        "BENCH_STATIN",
+        "ORPHAN_DRUG",
+        "SYNTH_EVENT_TACHY",
+        "BENCH_RHABDOMYOLYSIS",
+        "SYNTH_EVENT_ORPHAN",
+        "SYNTH_CORP"
+      ],
+      "purpose": "Unit testing and pipeline edge case validation"
+    },
+    "2024Q2": {
+      "quarter": "2024Q2",
+      "filename": "faers_ascii_2024q2.zip",
+      "generator": "src.ingestion.faers_sample_builder.build_synthetic_faers_quarter_2",
+      "planted_markers": [
+        "SYNTH_DRUG_ALPHA",
+        "BENCH_STATIN",
+        "SYNTH_EVENT_TACHY",
+        "BENCH_RHABDOMYOLYSIS",
+        "SYNTH_CORP"
+      ],
+      "purpose": "Unit testing multi-quarter temporal cutoff edge cases"
+    }
+  }
+}

@@ -1,0 +1,400 @@
+{
+  "total_quarters": 8,
+  "quarters": [
+    {
+      "quarter": "2024Q3",
+      "archive": "faers_ascii_2024q3.zip",
+      "members": 20,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 405513,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 1907293,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1431718,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 288275,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1177133,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 532854,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 10087,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 405513,
+      "demo_unique_primaryids": 405513,
+      "demo_unique_caseids": 405513,
+      "duplicate_versions_in_quarter": 0,
+      "drug_demo_link_rate": 1.0
+    },
+    {
+      "quarter": "2024Q4",
+      "archive": "faers_ascii_2024Q4.zip",
+      "members": 20,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 410849,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 2030938,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1472750,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 308960,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1219759,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 561889,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 11627,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 410849,
+      "demo_unique_primaryids": 410849,
+      "demo_unique_caseids": 410849,
+      "duplicate_versions_in_quarter": 0,
+      "drug_demo_link_rate": 1.0
+    },
+    {
+      "quarter": "2025Q1",
+      "archive": "faers_ascii_2025q1.zip",
+      "members": 20,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 400514,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 2008162,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1432926,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 304027,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1205861,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 520395,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 11033,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 400514,
+      "demo_unique_primaryids": 400514,
+      "demo_unique_caseids": 400514,
+      "duplicate_versions_in_quarter": 0,
+      "drug_demo_link_rate": 1.0
+    },
+    {
+      "quarter": "2025Q2",
+      "archive": "faers_ascii_2025q2.zip",
+      "members": 20,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 393130,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 1829056,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1340666,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 295583,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1136665,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 512759,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 11105,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 393130,
+      "demo_unique_primaryids": 393130,
+      "demo_unique_caseids": 393130,
+      "duplicate_versions_in_quarter": 0,
+      "drug_demo_link_rate": 1.0
+    },
+    {
+      "quarter": "2025Q3",
+      "archive": "faers_ascii_2025q3.zip",
+      "members": 20,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 438512,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 2148451,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1535133,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 343251,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1310274,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 514480,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 11107,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 438512,
+      "demo_unique_primaryids": 438512,
+      "demo_unique_caseids": 438512,
+      "duplicate_versions_in_quarter": 0,
+      "drug_demo_link_rate": 1.0
+    },
+    {
+      "quarter": "2025Q4",
+      "archive": "faers_ascii_2025Q4.zip",
+      "members": 20,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 385288,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 1815349,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1349105,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 289721,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1168789,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 454746,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 10694,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 385288,
+      "demo_unique_primaryids": 385288,
+      "demo_unique_caseids": 385288,
+      "duplicate_versions_in_quarter": 0,
+      "drug_demo_link_rate": 1.0
+    },
+    {
+      "quarter": "2026Q1",
+      "archive": "faers_ascii_2026q1.zip",
+      "members": 21,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 397224,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 1703210,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1330675,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 291580,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1139940,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 404946,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 11426,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 397224,
+      "demo_unique_primaryids": 397224,
+      "demo_unique_caseids": 397224,
+      "duplicate_versions_in_quarter": 0,
+      "drug_demo_link_rate": 1.0
+    },
+    {
+      "quarter": "2026Q2",
+      "archive": "faers_ascii_2026q2.zip",
+      "members": 20,
+      "readme": "Readme.pdf",
+      "tables": {
+        "DEMO": {
+          "rows": 422459,
+          "cols": 25,
+          "malformed": 0
+        },
+        "DRUG": {
+          "rows": 1627225,
+          "cols": 20,
+          "malformed": 0
+        },
+        "REAC": {
+          "rows": 1394751,
+          "cols": 4,
+          "malformed": 0
+        },
+        "OUTC": {
+          "rows": 303705,
+          "cols": 3,
+          "malformed": 0
+        },
+        "INDI": {
+          "rows": 1124333,
+          "cols": 4,
+          "malformed": 0
+        },
+        "THER": {
+          "rows": 326027,
+          "cols": 7,
+          "malformed": 0
+        },
+        "RPSR": {
+          "rows": 11295,
+          "cols": 3,
+          "malformed": 0
+        }
+      },
+      "demo_rows": 422459,
+      "demo_unique_primaryids": 422459,
+      "demo_unique_caseids": 422458,
+      "duplicate_versions_in_quarter": 1,
+      "drug_demo_link_rate": 1.0
+    }
+  ],
+  "total_rows_by_table": {
+    "DEMO": 3253489,
+    "DRUG": 15069684,
+    "REAC": 11287724,
+    "OUTC": 2425102,
+    "INDI": 9482754,
+    "THER": 3828096,
+    "RPSR": 88374
+  },
+  "demo_unique_cases_total_sum": 3253488,
+  "demo_total_reports": 3253489
+}

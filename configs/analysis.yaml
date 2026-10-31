@@ -1,0 +1,69 @@
+# PharmaSafe Statistical Analysis & Signal Detection Configuration
+version: "1.0"
+
+methodology:
+  name: "PharmaSafe Pharmacovigilance Signal Engine"
+  version: "1.0.0"
+  description: "Disproportionality analysis using 2x2 contingency tables on case-level FAERS data"
+
+screening_criteria:
+  primary:
+    # Minimum number of observed cases (a >= min_cases)
+    min_cases: 3
+    # Minimum Reporting Odds Ratio lower 95% confidence limit
+    min_ror_ci_lower: 1.0
+    # Minimum Proportional Reporting Ratio
+    min_prr: 2.0
+    # Minimum Chi-Square with Yates correction (optional standard threshold)
+    min_chi2: 4.0
+    # Allowed drug role categories for primary analysis:
+    # PS: Primary Suspect
+    target_roles: ["PS"]
+  
+  sensitivity:
+    all_suspect:
+      min_cases: 3
+      target_roles: ["PS", "SS"]
+    all_reported:
+      min_cases: 3
+      target_roles: ["PS", "SS", "C", "I"]
+
+statistics:
+  confidence_level: 0.95
+  z_score: 1.959963984540054
+  zero_cell_correction: 0.5  # Haldane-Anscombe correction applied when any cell is zero
+  deduplication_policy: "latest_version_max_fda_dt"
+
+grouping:
+  normalize_drug_names: true
+  case_insensitive: true
+  strip_salts_and_dosages: true
+
+export:
+  top_signals_limit: 1000
+  gold_signals_path: "data/gold/safety_signals.parquet"
+  gold_trends_path: "data/gold/quarterly_safety_trends.parquet"
+
+# Gold output controls
+output:
+  # Drug-event pairs with fewer observed cases than this are not stored (they can never pass screening)
+  min_stored_cases: 3
+
+# Temporal analytics (source quarter = quarter of the canonical report version)
+temporal:
+  min_cases_per_quarter: 3
+  # Discovery / evaluation split for temporal validation (quarters inclusive)
+  discovery_quarters: ["2024Q3", "2024Q4", "2025Q1", "2025Q2"]
+  evaluation_quarters: ["2025Q3", "2025Q4", "2026Q1", "2026Q2"]
+
+# Drug-combination (co-reporting) analytics
+combinations:
+  target_roles: ["PS", "SS"]
+  min_pair_cases: 10
+  min_cases: 3
+  top_pairs_limit: 20000
+
+# Robustness grid used by the validation report
+robustness:
+  min_cases: [3, 5, 10]
+  min_prr: [1.5, 2.0, 3.0]

@@ -1,0 +1,88 @@
+{
+  "stages": [
+    {
+      "stage": "Bronze 2024Q3 (7 tables + deleted list)",
+      "seconds": 8.04,
+      "input_rows": 5757842,
+      "output_rows": 5757842
+    },
+    {
+      "stage": "Bronze 2024Q4 (7 tables + deleted list)",
+      "seconds": 5.6,
+      "input_rows": 6021433,
+      "output_rows": 6021433
+    },
+    {
+      "stage": "Bronze 2025Q1 (7 tables + deleted list)",
+      "seconds": 5.74,
+      "input_rows": 5888650,
+      "output_rows": 5888650
+    },
+    {
+      "stage": "Bronze 2025Q2 (7 tables + deleted list)",
+      "seconds": 5.28,
+      "input_rows": 5525335,
+      "output_rows": 5525335
+    },
+    {
+      "stage": "Bronze 2025Q3 (7 tables + deleted list)",
+      "seconds": 5.56,
+      "input_rows": 6306155,
+      "output_rows": 6306155
+    },
+    {
+      "stage": "Bronze 2025Q4 (7 tables + deleted list)",
+      "seconds": 5.08,
+      "input_rows": 5478189,
+      "output_rows": 5478189
+    },
+    {
+      "stage": "Bronze 2026Q1 (7 tables + deleted list)",
+      "seconds": 5.02,
+      "input_rows": 5285136,
+      "output_rows": 5285136
+    },
+    {
+      "stage": "Bronze 2026Q2 (7 tables + deleted list)",
+      "seconds": 4.95,
+      "input_rows": 5214012,
+      "output_rows": 5214012
+    },
+    {
+      "stage": "Silver (all quarters, 7 tables)",
+      "seconds": 232.57,
+      "input_rows": 45435223,
+      "output_rows": 45161755
+    },
+    {
+      "stage": "Gold marts + signals (latest)",
+      "seconds": 89.47,
+      "input_rows": 17940147,
+      "output_rows": 2452064
+    },
+    {
+      "stage": "Gold marts + signals (asof_2025Q2)",
+      "seconds": 50.14,
+      "input_rows": 9508496,
+      "output_rows": 1663088
+    },
+    {
+      "stage": "Temporal analytics (latest)",
+      "seconds": 14.49,
+      "input_rows": null,
+      "output_rows": 612175
+    },
+    {
+      "stage": "Drug-combination analytics (latest)",
+      "seconds": 66.45,
+      "input_rows": null,
+      "output_rows": 3862333
+    },
+    {
+      "stage": "Validation (references, robustness, temporal)",
+      "seconds": 57.83,
+      "input_rows": null,
+      "output_rows": null
+    }
+  ]
+}
