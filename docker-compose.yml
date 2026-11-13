@@ -1,0 +1,21 @@
+# docker compose run --rm pipeline        # build Bronze -> Gold from data/raw/official
+# docker compose up dashboard api         # dashboard on :8501, API on :8000
+x-pharmasafe: &pharmasafe
+  build: .
+  image: pharmasafe
+  volumes:
+    - ./data:/app/data
+    - ./reports:/app/reports
+
+services:
+  pipeline:
+    <<: *pharmasafe
+    command: ["python", "scripts/run_full_pipeline.py"]
+    profiles: ["pipeline"]
+  dashboard:
+    <<: *pharmasafe
+    ports: ["8501:8501"]
+  api:
+    <<: *pharmasafe
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
